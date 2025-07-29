@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-import httpx, requests, os 
+import httpx, requests, os
 from tortoise.contrib.fastapi import register_tortoise
 from models import (supplier_pydantic, supplier_pydanticIn, Supplier)
 from dotenv import load_dotenv
@@ -28,8 +28,8 @@ async def add_supplier(supplier_info: supplier_pydanticIn):
     return {"status": "Ok", "data" : craete_supplier_res}
 
 # list all suppliers
-@app.get('/suppliers')
-async def get_suppliers():
+@app.get('/supplier')
+async def get_all_suppliers():
     get_all_suppliers_res = await supplier_pydantic.from_queryset(Supplier.all())
     if not get_all_suppliers_res:
         raise HTTPException(status_code=404, detail="No suppliers  found")
@@ -37,43 +37,58 @@ async def get_suppliers():
 
 #list a supplier by id
 @app.get('/supplier/{supplier_id}')
-async def get_supplier(supplier_id: int):
-    get_one_suppliers_res = await supplier_pydantic.from_queryset_single(
-        Supplier.get(id=supplier_id)
-    )
+async def get_one_supplier(supplier_id: int):
+    get_one_suppliers_res = await supplier_pydantic.from_queryset_single(Supplier.get(id=supplier_id))
     if not get_one_suppliers_res:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return {"status": "Ok", "data": get_one_suppliers_res}
+
+@app.put('/supplier/{supplier_id}')
+async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn):
+    get_update_supplier = await Supplier.get(id = supplier_id)
+    update_info = update_info.dict(exclude_unset=True)
+    get_update_supplier.name = update_info['name']
+    get_update_supplier.company = update_info.company
+    get_update_supplier.email = update_info.email
+    get_update_supplier.phone = update_info.phone
+
+    #save updates
+    get_update_supplier.save()
+    update_supplier_res = supplier_pydantic.from_tortoise_orm(get_update_supplier)
+    
+    return {"status": "Ok", "data": update_supplier_res}
+
+
 
 
 
 
 # test external apis
 
-@app.get("/weather")
-def get_weather(city: str):
-    res = requests.get(
-        f"http://api.weatherapi.com/v1/current.json?key=47793dce3b9b4faa9f4132058251407&q={city}&aqi=no"
-    )
-    data = res.json()
-    return {
-        "city": data["location"]["name"],
-        "country": data["location"]["country"],
-        "temperature": data["current"]["temp_c"],
-        "weather": data["current"]["condition"]["text"]
-    }
+# @app.get("/weather")
+# def get_weather(city: str):
+#     res = requests.get(
+#         f"http://api.weatherapi.com/v1/current.json?key=47793dce3b9b4faa9f4132058251407&q={city}&aqi=no"
+#     )
+#     data = res.json()
+#     return {
+#         "city": data["location"]["name"],
+#         "country": data["location"]["country"],
+#         "temperature": data["current"]["temp_c"],
+#         "weather": data["current"]["condition"]["text"]
+#     }
 
-@app.get("/cities")
-async def get_cities(keyword: str):
-    url = f"https://test.api.amadeus.com/v1/reference-data/locations/cities?keyword={keyword}"
+# @app.get("/cities")
+# async def get_cities(keyword: str):
+#     url = f"https://test.api.amadeus.com/v1/reference-data/locations/cities?keyword={keyword}"
     
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
+#     headers = {
+#         "Authorization": f"Bearer {access_token}"
+#     }
     
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
-        return response.json()
+#     async with httpx.AsyncClient() as client:
+#         response = await client.get(url, headers=headers)
+#         return response.json()
 
 
 
