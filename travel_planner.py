@@ -1,14 +1,14 @@
 from fastapi import FastAPI, HTTPException
-import httpx, requests, os
+# import httpx, requests, os
 from tortoise.contrib.fastapi import register_tortoise
 from models import (supplier_pydantic, supplier_pydanticIn, Supplier)
 from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("AMADEUS_API_KEY")
-api_secret = os.getenv("AMADEUS_API_SECRET")
-access_token = os.getenv("ACCESS_TOKEN")
+# api_key = os.getenv("AMADEUS_API_KEY")
+# api_secret = os.getenv("AMADEUS_API_SECRET")
+# access_token = os.getenv("ACCESS_TOKEN")
 
 
 

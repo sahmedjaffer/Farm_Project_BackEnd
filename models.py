@@ -4,25 +4,6 @@ from tortoise.contrib.pydantic import pydantic_model_creator
 import uuid
 
 
-class User (Model):
-    id = fields.UUIDField(default = uuid.uuid4)
-    first_name = fields.CharField(max_length=30, nullable=False)
-    las_name = fields.CharField(max_length=30, nullable=False)
-    email = fields.CharField(max_length=100)
-    hashed_password = fields.CharField(max_length=100)
-
-
-class Preferences (Model):
-    id = fields.IntField(pk=True)
-    user_id = fields.ForeignKeyField('models.User', related_name= "user_preferences")
-    preferred_countries = fields.CharField(max_length=100)
-    preferred_activities = fields.CharField(max_length=100)
-    preferred_hotels = fields.CharField(max_length=100)
-
-
-class Trips (Model):
-    id = fields.IntField(pk=True)
-
 
 class Product(Model):
     id = fields.IntField(pk=True)

@@ -6,7 +6,7 @@ import uuid
 
 
 class User (Model):
-    id = fields.UUIDField(default = uuid.uuid4)
+    id = fields.UUIDField(pk=True, default = uuid.uuid4)
     first_name = fields.CharField(max_length=30, nullable=False)
     las_name = fields.CharField(max_length=30, nullable=False)
     email = fields.CharField(max_length=100)
