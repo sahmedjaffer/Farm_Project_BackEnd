@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException
 # import httpx, requests, os
 from tortoise.contrib.fastapi import register_tortoise
-from models import (supplier_pydantic, supplier_pydanticIn, Supplier)
+from models.models import (supplier_pydantic, supplier_pydanticIn, Supplier)
 from dotenv import load_dotenv
-
+from models.user import User, user_pydanticIn, user_pydantic
+from typing import Type
 load_dotenv()
 
 # api_key = os.getenv("AMADEUS_API_KEY")
@@ -18,6 +19,18 @@ app = FastAPI()
 @app.get('/')
 def index():
     return{"Msg" : "go to /docs for the API documentations"}
+
+
+userIn = user_pydanticIn
+user = user_pydantic
+# create new user
+@app.post('/user')
+async def add_user(user_info: userIn):
+    user_obj = await User.create(**user_info.model_dump(exclude_unset=True))
+    create_user_res = await user.from_tortoise_orm(user_obj)
+    return {"status": "Ok", "data" : create_user_res}
+
+
 
 
 # create new supplier
@@ -51,12 +64,16 @@ async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn):
     get_update_supplier.company = update_info.company
     get_update_supplier.email = update_info.email
     get_update_supplier.phone = update_info.phone
-
     #save updates
     get_update_supplier.save()
     update_supplier_res = supplier_pydantic.from_tortoise_orm(get_update_supplier)
-    
     return {"status": "Ok", "data": update_supplier_res}
+
+
+@app.delete('/supplier/{supplier_id}')
+async def delete_supplier (supplier_id: int):
+    get_delete_supplier = await Supplier.get(id = supplier_id).delete()
+    return {"status": "Ok", "data": get_delete_supplier}
 
 
 
@@ -100,7 +117,7 @@ async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn):
 register_tortoise(
     app,
      db_url="sqlite://database.sqlite3",
-     modules={"models": ["models"]},
+     modules={"models": ["models.models","models.user","models.trips","models.preferences"]},
      generate_schemas=True,
      add_exception_handlers=True,
 )
