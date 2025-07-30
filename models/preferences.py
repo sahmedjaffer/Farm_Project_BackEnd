@@ -10,7 +10,8 @@ class Preferences (Model):
     preferred_countries = fields.CharField(max_length=100)
     preferred_activities = fields.CharField(max_length=100)
     preferred_hotels = fields.CharField(max_length=100)
-
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
 
 
 #creare pydantic models
