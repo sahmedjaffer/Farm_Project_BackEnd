@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
-import httpx, requests, os
+# import httpx, requests, os
+import httpx
 from tortoise.contrib.fastapi import register_tortoise
 from models.models import (supplier_pydantic, supplier_pydanticIn, Supplier)
 from dotenv import load_dotenv
@@ -9,9 +10,9 @@ from typing import List, Optional, Type
 from datetime import datetime, timedelta
 load_dotenv()
 
-api_key = os.getenv("AMADEUS_API_KEY")
-api_secret = os.getenv("AMADEUS_API_SECRET")
-access_token = os.getenv("ACCESS_TOKEN")
+# api_key = os.getenv("AMADEUS_API_KEY")
+# api_secret = os.getenv("AMADEUS_API_SECRET")
+# access_token = os.getenv("ACCESS_TOKEN")
 
 
 
@@ -124,10 +125,6 @@ async def delete_supplier (supplier_id: int):
     return {"status": "Ok", "data": get_delete_supplier}
 
 
-
-
-
-
 # test external apis
 
 @app.get("/weather", tags=["get Weather info"])
@@ -143,147 +140,174 @@ def get_weather(city: str):
         "weather": data["current"]["condition"]["text"]
     }
 
-@app.get("/cities", tags=["Get City info"])
-async def get_cities(keyword: str):
-    url = f"https://test.api.amadeus.com/v1/reference-data/locations/cities?keyword={keyword}"
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
-        data= response.json()
-        city_data = data["data"][0] if data.get("data") else None
-        if not city_data:
-            return {"error": "No city data found"}
-        return {
-            "city":city_data["name"],
-            "countryCode":city_data["address"]["countryCode"],
-            "latitude":city_data["geoCode"]["latitude"],
-            "longitude":city_data["geoCode"]["longitude"],
-        }
-
-@app.get("/hotels", tags=["Get Hotel info"])
-async def get_hotels(city_code: str = Query(..., description="IATA city code (3 letters)"), ratings: Optional[List[int]] = Query(None, description="Filter by star ratings (1-5)")):
-    params = {
-        "cityCode": city_code,
-        "ratings": ",".join(map(str, ratings)) if ratings else None,
-    }
-    params = {k: v for k, v in params.items() if v is not None}
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(
-            "https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city",
-             headers=headers,
-                params=params
-            )
-        response.raise_for_status()
-        data = response.json()    
-    
-    # url = f"https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city?cityCode={city_code}&ratings={ratings}"
-
-    # headers = {
-    #     "Authorization": f"Bearer {access_token}"
-    # }
-    
-    # async with httpx.AsyncClient() as client:
-    #     response = await client.get(url, headers=headers)
-    #     hotel_data= response.json().get("data",[]) 
-    #     print(hotel_data)
-        hotels = []
-        # for hotel in hotel_data:
-        #     hotels.append({
-        #         "iataCode": hotel["iataCode"],
-        #         "latitude": hotel["geoCode"]["latitude"],
-        #         "longitude": hotel["geoCode"]["longitude"],
-        #         "countryCode": hotel["address"]["countryCode"],
-        #         "postalCode":hotel["address"]["postalCode"],
-        #         "cityName":hotel["address"]["cityName"],
-        #         "address":hotel["address"]["lines"],
-        #         "rating": hotel["rating"],
-        #         "lastUpdate": hotel["lastUpdate"]
-        # })
-
-        for hotel in data.get("data", []):
-                    hotel_info = {
-                        "name": hotel.get("name"),
-                        "iataCode": hotel.get("iataCode"),
-                        "rating": hotel.get("rating"),
-
-                        "latitude": hotel.get("geoCode", {}).get("latitude"),
-                        "longitude": hotel.get("geoCode", {}).get("longitude"),
-                        "address": {
-                                "lines": hotel.get("address", {}).get("lines"),
-                                "city": hotel.get("address", {}).get("cityName"),
-                                "postalCode": hotel.get("address", {}).get("postalCode"),
-                                "country": hotel.get("address", {}).get("countryCode")
-
-                        },
-                        "lastUpdate": hotel.get("lastUpdate")
-                    }
-                    hotels.append(hotel_info)
-    return {"count": len(hotels), "hotels": hotels}
-
-    # return JSONResponse(content={"hotels": hotels})
-
-
-@app.get("/restaurants", tags=["Get Restaurant info"])
-async def get_hotels(city: str = Query(..., description="City name")):
-
-    url = "https://tripadvisor16.p.rapidapi.com/api/v1/restaurant/searchLocation"
-
-    querystring = {"query":f"{city}"}
-
-    headers = {
-        "x-rapidapi-key": "5426608891msh579aed380d1e444p1abeabjsncba767320ab6",
-        "x-rapidapi-host": "tripadvisor16.p.rapidapi.com"
-    }
-
-    response = requests.get(url, headers=headers, params=querystring)
-
-    return {"status": "Ok", "data": response.json()}
-
-
-@app.get("/Hotels", tags=["Get Hotels info"])
+@app.get("/Hotels", tags=["Get Hotels info(New test)"])
 async def get_hotels(city_name: str = Query(None, description="City name for hotel search"),
-    adults: str = Query(None,description="Number of adult guests"),
-    children_age: str = Query(None, description="Comma-separated list of children's ages (0-17)"),
-    room_qty: str = Query(None, description="Number of rooms needed"),
     arrival_date: str = Query(None, description="Arrival date in YYYY-MM-DD format"),
     departure_date : str = Query(None, description="Departure date in YYYY-MM-DD format"),
-    price_min: str = Query(None, description="Minimum price for a night"),
-    price_max: str = Query(None, description="Maximum price for a night")
+
     ):
-    search_destination_url = "https://booking-com15.p.rapidapi.com/api/v1/hotels/searchDestination"
 
+    # to find hotel by location and some info
+    hotel_auto_complete_url = "https://booking-com18.p.rapidapi.com/stays/auto-complete"
+    hotel_search_url = "https://booking-com18.p.rapidapi.com/stays/search"
+    hotel_review_scores_url = "https://booking-com18.p.rapidapi.com/stays/review-scores"
+    hotel_auto_complete_querystring = {"query":f"{city_name}"}
 
-    get_search_hotel_url = "https://booking-com15.p.rapidapi.com/api/v1/hotels/searchHotels"
+    #flight API's
 
+    # flight_auto_complete_url = "https://booking-com18.p.rapidapi.com/flights/v2/auto-complete"
+    # flight_roundtrip_url = "https://booking-com18.p.rapidapi.com/flights/v2/min-price-roundtrip"
+    # flight_auto_complete_querystring = {"query":f"{city_name}"}
+    # flight_roundtrip_querystring= {"departId":f"{depart_id}","arrivalId":f"{arrival_id}","departDate":f"{arrival_date}","returnDate":f"{departure_date}"}
 
     headers = {
         "x-rapidapi-key": "5426608891msh579aed380d1e444p1abeabjsncba767320ab6",
-        "x-rapidapi-host": "booking-com15.p.rapidapi.com"
+        "x-rapidapi-host": "booking-com18.p.rapidapi.com"
     }
-    search_destination_querystring = {"query":f"{city_name}"}
-
-
 
     async with httpx.AsyncClient() as client:
-        search_destination_response = await  client.get(search_destination_url, headers=headers, params=search_destination_querystring)
-        dest_data = search_destination_response.json()
-        print(dest_data)
-        dest_id = dest_data["data"][1]["dest_id"]
-        print(dest_id)
-        get_search_hotel_querystring = {"dest_id":dest_id,"search_type":"CITY","adults":adults,"children_age":children_age,"room_qty":room_qty,
-                                   "arrival_date": arrival_date,"departure_date": departure_date,"price_min":price_min,"price_max":price_max,"currency_code":"BHD"}
-        get_hotel_search_response = await client.get(get_search_hotel_url, headers=headers, params=get_search_hotel_querystring)
+        # api to find the destination
+        hotel_auto_complete_response = await  client.get(hotel_auto_complete_url, headers=headers, params=hotel_auto_complete_querystring)
+        hotel_auto_complete_data = hotel_auto_complete_response.json()
+        location_id = hotel_auto_complete_data["data"][0]["id"]
+        location_name=hotel_auto_complete_data["data"][0]["name"]
+        location_country=hotel_auto_complete_data["data"][0]["country"]
 
-    return {"status": "Ok", "data": get_hotel_search_response.json()}
+        # api to search for the hotels
+        hotel_search_querystring = {"locationId":f"{location_id}" ,"checkinDate":f"{arrival_date}","checkoutDate":f"{departure_date}","sortBy":"price","units":"metric","temperature":"c", "currencyCode":"BHD"}
+        hotel_search_response = await client.get(hotel_search_url, headers=headers, params= hotel_search_querystring)
+        hotel_search_data= hotel_search_response.json()
+        hotels_data = hotel_search_data.get("data", [])
+        if not hotels_data:
+            return {"status": "No hotels found", "data": []}
 
-    
+        found_hotels=[]
+        for hotel in hotels_data:
+                    hotel_id = hotel.get("id")
+                    print(hotel_id)
+                    hotel_review_scores_querystring = {"hotelId":f"{hotel_id}"}
+                    hotel_review_scores_response= await client.get(hotel_review_scores_url, headers=headers, params= hotel_review_scores_querystring)
+                    hotel_review_scores_data= hotel_review_scores_response.json()
+                    hotel_info = {
+                        "hotel_id": hotel.get("id"),
+                        "hotel_name": hotel.get("name"),
+                        "review_scoreWord": hotel.get("reviewScoreWord"),
+                        "review_score": hotel.get("reviewScore"),
+                        "gross_price": hotel.get("priceBreakdown", {}).get("grossPrice", {}).get("value"),
+                        "check_in":{
+                                       "from": hotel.get("checkin", {}).get("fromTime", {}),
+                                       "until":hotel.get("checkin", {}).get("untilTime", {}),
+                        },
+                        "check_out":{
+                                       "from": hotel.get("checkout", {}).get("fromTime", {}),
+                                       "until":hotel.get("checkout", {}).get("untilTime", {}),
+                        },
+                        "score": {                        
+                            "Wonderful":{
+                                 "percent": hotel_review_scores_data["data"]["score_percentage"][0]["percent"],
+                                 "count": hotel_review_scores_data["data"]["score_percentage"][0]["count"],
+                                 },
+                            "Good": {
+                                 "percent": hotel_review_scores_data["data"]["score_percentage"][1]["percent"],
+                                 "count": hotel_review_scores_data["data"]["score_percentage"][1]["count"],
+                                 },
+                            "Okay":{
+                                 "percent": hotel_review_scores_data["data"]["score_percentage"][2]["percent"],
+                                 "count": hotel_review_scores_data["data"]["score_percentage"][2]["count"],
+                                 },
+                            "Poor":{
+                                 "percent": hotel_review_scores_data["data"]["score_percentage"][3]["percent"],
+                                 "count": hotel_review_scores_data["data"]["score_percentage"][3]["count"],
+                                 },
+                            "Very Poor":{
+                                 "percent": hotel_review_scores_data["data"]["score_percentage"][4]["percent"],
+                                 "count": hotel_review_scores_data["data"]["score_percentage"][4]["count"],
+                                 },}
+                    }
+                    found_hotels.append(hotel_info)
+    return {"status": "Ok", "data": found_hotels}
+
+
+
+@app.get("/attraction", tags=["Get Attractions info(New test)"])
+async def get_hotels(city_name: str = Query(None, description="City name for hotel search"),
+    arrival_date: str = Query(None, description="Arrival date in YYYY-MM-DD format"),
+    departure_date : str = Query(None, description="Departure date in YYYY-MM-DD format"),
+    attraction_date: str = Query(None, description="Attraction date in YYYY-MM-DD format"),
+    ):
+    #attraction API's
+    attraction_auto_complete_url = "https://booking-com18.p.rapidapi.com/attraction/auto-complete"
+    attraction_search_url = "https://booking-com18.p.rapidapi.com/attraction/search"
+    attraction_auto_complete_querystring = {"query":f"{city_name}"}
+    headers = {
+        "x-rapidapi-key": "5426608891msh579aed380d1e444p1abeabjsncba767320ab6",
+        "x-rapidapi-host": "booking-com18.p.rapidapi.com"
+    }
+    async with httpx.AsyncClient() as client:
+        # api to find the attraction
+        attraction_auto_complete_response = await  client.get(attraction_auto_complete_url, headers=headers, params=attraction_auto_complete_querystring)
+        attraction_auto_complete_data = attraction_auto_complete_response.json()
+        attraction_id= attraction_auto_complete_data["data"]["products"][0]["id"]
+        attraction_search_querystring = {"id":f"{attraction_id}","startDate":f"{arrival_date}","endDate":f"{departure_date}"}
+        attraction_search_response = await  client.get(attraction_search_url, headers=headers, params=attraction_search_querystring)
+        attraction_search_data = attraction_search_response.json()
+        attractions_data = attraction_search_data.get("data", [])
+        if not attractions_data:
+            return {"status": "No attractions found", "data": []}
+        found_attractions = []
+        if attractions_data and "products" in attractions_data:
+            attraction_availability_querystring = {"id":f"{attraction_id}","date":f"{attraction_date}"}
+            
+            for attraction in attractions_data["products"]:
+                attraction_info = {
+                    "attraction_id":(id== attraction.get("id")),
+                    "attraction_name": attraction.get("name"),
+                    "attraction_short_description": attraction.get("shortDescription"),
+                    "attraction_price": attraction.get("representativePrice", {}).get("chargeAmount"),
+                    "currency": attraction.get("representativePrice", {}).get("currency", "USD")
+                }
+                found_attractions.append(attraction_info)
+                print(attraction_info)
+            # found_attraction.append(attraction_info)
+    return {"status": "Ok", "data": found_attractions}
+
+app.get("/flight", tags=["Get flights info(New test)"])
+async def get_hotels(city_name: str = Query(None, description="City name for hotel search"),
+    arrival_date: str = Query(None, description="Arrival date in YYYY-MM-DD format"),
+    departure_date : str = Query(None, description="Departure date in YYYY-MM-DD format"),
+    departure_city_name: str = Query(None, description="departure city"),
+    ):
+    headers = {
+        "x-rapidapi-key": "5426608891msh579aed380d1e444p1abeabjsncba767320ab6",
+        "x-rapidapi-host": "booking-com18.p.rapidapi.com"
+    }
+        #flight API's
+
+    flight_auto_complete_url = "https://booking-com18.p.rapidapi.com/flights/v2/auto-complete"
+    flight_auto_complete_querystring = {"query":f"{city_name}"}
+    async with httpx.AsyncClient() as client:
+
+        flight_auto_complete_response = await  client.get(flight_auto_complete_url, headers=headers, params=flight_auto_complete_querystring)
+        flight_auto_complete_data = flight_auto_complete_response.json()
+        flight_auto_data = flight_auto_complete_data.get("data", [])
+        for airport in flight_auto_data:
+            type = airport.get("type")
+            if type == "AIRPORT":
+                airport_info = {
+                    "airport_name": airport.get("name"),
+                    "airport_code": airport.get("code"),
+                    "city_name": airport.get("cityName"),
+                    "country_name": airport.get("countryName"),
+                    "distance_to_city": airport.get("distanceToCity").get("value")
+                } 
+
+
+
+
+    flight_roundtrip_querystring= {"departId":f"{depart_id}","arrivalId":f"{arrival_id}","departDate":f"{arrival_date}","returnDate":f"{departure_date}"}
+    flight_roundtrip_url = "https://booking-com18.p.rapidapi.com/flights/v2/min-price-roundtrip"
+
+
 
 
 register_tortoise(
