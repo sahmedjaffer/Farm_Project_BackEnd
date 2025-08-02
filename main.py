@@ -1,13 +1,14 @@
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, status, Query
 # import httpx, requests, os
-import httpx
+import httpx,urllib.parse, requests
 from tortoise.contrib.fastapi import register_tortoise
 from models.models import (supplier_pydantic, supplier_pydanticIn, Supplier)
 from dotenv import load_dotenv
 from models.user import User, user_pydanticIn, user_pydantic
-from typing import List, Optional, Type
-from datetime import datetime, timedelta
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import create_access_token, verify_password, get_current_user,get_password_hash
+
 load_dotenv()
 
 # api_key = os.getenv("AMADEUS_API_KEY")
@@ -23,20 +24,56 @@ app = FastAPI()
 def index():
     return{"Msg" : "go to /docs for the API documentations"}
 
+@app.get("/users/me")
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return {
+        "email": current_user.email,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name
+    }
+
+
+# ===== Login =====
+@app.post("/auth/login", tags=["Auth"], summary="Login to get JWT token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = await User.get_or_none(email=form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or password")
+
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 
 userIn = user_pydanticIn
 user = user_pydantic
-# create new user
-@app.post('/user' , tags=["Users"], summary="Create new user")
-async def add_user(user_info: userIn):
-    user_obj = await User.create(**user_info.model_dump(exclude_unset=True))
-    create_user_res = await user.from_tortoise_orm(user_obj)
-    return {"status": "Ok", "data" : create_user_res}
+# ===== Register =====
+@app.post('/auth/register', tags=["Auth"], summary="Register new user")
+async def register(user_info: userIn):
+    existing_user = await User.get_or_none(email=user_info.email)
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    hashed_password = get_password_hash(user_info.hashed_password)
+    user_obj = await User.create(
+        first_name=user_info.first_name,
+        last_name=user_info.last_name,
+        email=user_info.email,
+        hashed_password=hashed_password
+    )
+    return {"status": "Ok", "data": await user_pydantic.from_tortoise_orm(user_obj)}
+
+# # create new user
+# @app.post('/user' , tags=["Users"], summary="Create new user")
+# async def add_user(user_info: userIn):
+#     user_obj = await User.create(**user_info.model_dump(exclude_unset=True))
+#     create_user_res = await user.from_tortoise_orm(user_obj)
+#     return {"status": "Ok", "data" : create_user_res}
 
 
 # list all users
 @app.get('/user' , tags=["Users"], summary="List all users")
-async def get_all_users():
+async def get_all_users(current_user: User = Depends(get_current_user)):
     get_all_users_res = await user.from_queryset(User.all())
     if not get_all_users_res:
         raise HTTPException(status_code=404, detail="No users  found")
@@ -44,7 +81,7 @@ async def get_all_users():
 
 #list a user by id
 @app.get('/user/{user_id}' , tags=["Users"], summary="List a user by ID")
-async def get_user_by_id(user_id: int):
+async def get_user_by_id(user_id: int,current_user: User = Depends(get_current_user)):
     get_user_by_id_res = await user.from_queryset_single(User.get(id=user_id))
     if not get_user_by_id_res:
         raise HTTPException(status_code=404, detail="User not found")
@@ -54,21 +91,22 @@ async def get_user_by_id(user_id: int):
 
 #update user by id
 @app.patch('/user/{user_id}' , tags=["Users"], summary="Update a user info by ID")
-async def update_user(user_id: int, update_info: userIn):
+async def update_user(user_id: int, update_info: userIn,current_user: User = Depends(get_current_user)):
     get_update_user = await User.get(id = user_id)
     update_info = update_info.model_dump(exclude_unset=True)
-    get_update_user.first_name = update_info['first_name']
-    get_update_user.last_name = update_info['last_name']
+    if "first_name" or "last_name" in update_info:
+        get_update_user.first_name = update_info["first_name"]    
+        get_update_user.last_name = update_info["last_name"]
     get_update_user.email = update_info['email']
     #get_update_user.hashed_password = update_info['hashed_password']
     #save updates
-    get_update_user.save()
-    update_user_res = user.from_tortoise_orm(get_update_user)
+    await get_update_user.save()
+    update_user_res = await user.from_tortoise_orm(get_update_user)
     return {"status": "Ok", "data": update_user_res}
 
 #delete user by id
 @app.delete('/user/{user_id}', tags=["Users"], summary="Delete a user by ID")
-async def delete_user (user_id: int):
+async def delete_user (user_id: int,current_user: User = Depends(get_current_user)):
     delete_user_res = await User.get(id = user_id).delete()
     return {"status": "Ok", "data": delete_user_res}
 
@@ -77,14 +115,14 @@ async def delete_user (user_id: int):
 
 # create new supplier
 @app.post('/supplier', tags=["Suppliers"], summary="Create new supplier")
-async def add_supplier(supplier_info: supplier_pydanticIn):
+async def add_supplier(supplier_info: supplier_pydanticIn,current_user: User = Depends(get_current_user)):
     supplier_obj = await Supplier.create(**supplier_info.dict(exclude_unset=True))
     craete_supplier_res = await supplier_pydantic.from_tortoise_orm(supplier_obj)
     return {"status": "Ok", "data" : craete_supplier_res}
 
 # list all suppliers
 @app.get('/supplier', tags=["Suppliers"], summary="List all suppliers")
-async def get_all_suppliers():
+async def get_all_suppliers(current_user: User = Depends(get_current_user)):
     get_all_suppliers_res = await supplier_pydantic.from_queryset(Supplier.all())
     if not get_all_suppliers_res:
         raise HTTPException(status_code=404, detail="No suppliers  found")
@@ -92,14 +130,14 @@ async def get_all_suppliers():
 
 #list a supplier by id
 @app.get('/supplier/{supplier_id}', tags=["Suppliers"], summary="List a supplier by id")
-async def get_one_supplier(supplier_id: int):
+async def get_one_supplier(supplier_id: int,current_user: User = Depends(get_current_user)):
     get_one_suppliers_res = await supplier_pydantic.from_queryset_single(Supplier.get(id=supplier_id))
     if not get_one_suppliers_res:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return {"status": "Ok", "data": get_one_suppliers_res}
 
 @app.patch('/supplier/{supplier_id}', tags=["Suppliers"], summary="Update a supplier by id")
-async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn):
+async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn,current_user: User = Depends(get_current_user)):
     get_update_supplier = await Supplier.get(id=supplier_id)
     if not get_update_supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -107,20 +145,13 @@ async def update_supplier(supplier_id: int, update_info: supplier_pydanticIn):
     update_info = update_info.dict(exclude_unset=True)
     for field, value in update_info.items():
         setattr(get_update_supplier, field, value)
-
-
-    # get_update_supplier.name = update_info['name']
-    # get_update_supplier.company = update_info.company
-    # get_update_supplier.email = update_info.email
-    # get_update_supplier.phone = update_info.phone
-    #save updates
     await get_update_supplier.save()
     update_supplier_res = await supplier_pydantic.from_tortoise_orm(get_update_supplier)
     return {"status": "Ok", "data": update_supplier_res}
 
 
 @app.delete('/supplier/{supplier_id}', tags=["Suppliers"], summary="Delete a supplier by id")
-async def delete_supplier (supplier_id: int):
+async def delete_supplier (supplier_id: int,current_user: User = Depends(get_current_user)):
     get_delete_supplier = await Supplier.get(id = supplier_id).delete()
     return {"status": "Ok", "data": get_delete_supplier}
 
@@ -172,7 +203,6 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
         location_id = hotel_auto_complete_data["data"][0]["id"]
         location_name=hotel_auto_complete_data["data"][0]["name"]
         location_country=hotel_auto_complete_data["data"][0]["country"]
-
         # api to search for the hotels
         hotel_search_querystring = {"locationId":f"{location_id}" ,"checkinDate":f"{arrival_date}","checkoutDate":f"{departure_date}","sortBy":"price","units":"metric","temperature":"c", "currencyCode":"BHD"}
         hotel_search_response = await client.get(hotel_search_url, headers=headers, params= hotel_search_querystring)
@@ -180,7 +210,6 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
         hotels_data = hotel_search_data.get("data", [])
         if not hotels_data:
             return {"status": "No hotels found", "data": []}
-
         found_hotels=[]
         for hotel in hotels_data:
                     hotel_id = hotel.get("id")
@@ -230,7 +259,7 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
 
 
 @app.get("/attraction", tags=["Get Attractions info(New test)"])
-async def get_hotels(city_name: str = Query(None, description="City name for hotel search"),
+async def get_attraction(city_name: str = Query(None, description="City name for hotel search"),
     arrival_date: str = Query(None, description="Arrival date in YYYY-MM-DD format"),
     departure_date : str = Query(None, description="Departure date in YYYY-MM-DD format"),
     attraction_date: str = Query(None, description="Attraction date in YYYY-MM-DD format"),
@@ -238,6 +267,8 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
     #attraction API's
     attraction_auto_complete_url = "https://booking-com18.p.rapidapi.com/attraction/auto-complete"
     attraction_search_url = "https://booking-com18.p.rapidapi.com/attraction/search"
+    attraction_calendar_url = "https://booking-com18.p.rapidapi.com/attraction/get-availability-calendar"
+    attraction_availability_url = "https://booking-com18.p.rapidapi.com/attraction/get-availability"
     attraction_auto_complete_querystring = {"query":f"{city_name}"}
     headers = {
         "x-rapidapi-key": "5426608891msh579aed380d1e444p1abeabjsncba767320ab6",
@@ -256,23 +287,47 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
             return {"status": "No attractions found", "data": []}
         found_attractions = []
         if attractions_data and "products" in attractions_data:
-            attraction_availability_querystring = {"id":f"{attraction_id}","date":f"{attraction_date}"}
-            
             for attraction in attractions_data["products"]:
+                attr_id = attraction.get("id")
+                attraction_calendar_querystring = {"id":f"{attr_id}"}
+                attraction_calendar_response = await  client.get(attraction_calendar_url, headers=headers, params=attraction_calendar_querystring)
+                attraction_calendar_data = attraction_calendar_response.json()
+                cal_data = attraction_calendar_data.get("data", [])
+                found_cal=[]
+                for cal in cal_data:
+                    if cal.get("available") == "false":
+                        continue
+                    else:
+                        available_cal = {
+                            "availability_date":cal.get("date")
+                    }
+                    found_cal.append(available_cal)
+                attraction_availability_querystring = {"id":f"{attr_id}","date":f"{attraction_date}"}
+                attraction_availability_response = await  client.get(attraction_availability_url, headers=headers, params=attraction_availability_querystring)
+                attraction_availability_data = attraction_availability_response.json()
+                attr_data = attraction_availability_data.get("data", [])
+                found_attr_time=[]
+                for attr in attr_data:
+                    attr_data = {
+                        "start_at": attr.get("start")
+                    }
+                    found_attr_time.append(attr_data)  
                 attraction_info = {
-                    "attraction_id":(id== attraction.get("id")),
+                    "attraction_id":attraction.get("id"),
                     "attraction_name": attraction.get("name"),
                     "attraction_short_description": attraction.get("shortDescription"),
                     "attraction_price": attraction.get("representativePrice", {}).get("chargeAmount"),
-                    "currency": attraction.get("representativePrice", {}).get("currency", "USD")
+                    "currency": attraction.get("representativePrice", {}).get("currency", "USD"),
+                    "available_date": found_cal,
+                    "attraction_daily_timing":found_attr_time
                 }
                 found_attractions.append(attraction_info)
-                print(attraction_info)
-            # found_attraction.append(attraction_info)
     return {"status": "Ok", "data": found_attractions}
 
-app.get("/flight", tags=["Get flights info(New test)"])
-async def get_hotels(city_name: str = Query(None, description="City name for hotel search"),
+
+
+@app.get("/flight", tags=["Get flights info(New test)"])
+async def flight(city_name: str = Query(None, description="City name for hotel search"),
     arrival_date: str = Query(None, description="Arrival date in YYYY-MM-DD format"),
     departure_date : str = Query(None, description="Departure date in YYYY-MM-DD format"),
     departure_city_name: str = Query(None, description="departure city"),
@@ -284,32 +339,64 @@ async def get_hotels(city_name: str = Query(None, description="City name for hot
         #flight API's
 
     flight_auto_complete_url = "https://booking-com18.p.rapidapi.com/flights/v2/auto-complete"
-    flight_auto_complete_querystring = {"query":f"{city_name}"}
-    async with httpx.AsyncClient() as client:
+    
+    # arrival_id = ""
+    # depart_id = ""
+    async def get_airport_info(city):
+        airports=[]
+        async with httpx.AsyncClient() as client:
+            flight_auto_complete_querystring = {"query":f"{city}"}
+            flight_auto_complete_response = await  client.get(flight_auto_complete_url, headers=headers, params=flight_auto_complete_querystring)
+            flight_auto_complete_data = flight_auto_complete_response.json()
+            airports_data = flight_auto_complete_data.get("data", [])
+            airport_id=None
+            for airport in airports_data:
+                type = airport.get("type")
+                if type == "AIRPORT":
+                    airport_id = airport.get("code")
+                    airport_info = {
+                        "airport_name": airport.get("name"),
+                        "airport_code": airport.get("code"),
+                        "city_name": airport.get("cityName"),
+                        "country_name": airport.get("countryName"),
+                        "distance_to_city": airport.get("distanceToCity").get("value")
+                    }
+                    airports.append(airport_info)
+            return airport_id, airports
+    # decoded_departure_city_name = urllib.parse.unquote(departure_city_name)        
+    arrival_id, arrival_airports = await get_airport_info(city_name)
+    depart_id, departure_airports = await get_airport_info(departure_city_name)
 
-        flight_auto_complete_response = await  client.get(flight_auto_complete_url, headers=headers, params=flight_auto_complete_querystring)
-        flight_auto_complete_data = flight_auto_complete_response.json()
-        flight_auto_data = flight_auto_complete_data.get("data", [])
-        for airport in flight_auto_data:
-            type = airport.get("type")
-            if type == "AIRPORT":
-                airport_info = {
-                    "airport_name": airport.get("name"),
-                    "airport_code": airport.get("code"),
-                    "city_name": airport.get("cityName"),
-                    "country_name": airport.get("countryName"),
-                    "distance_to_city": airport.get("distanceToCity").get("value")
-                } 
+    print("arrival_airports     " + arrival_id, arrival_airports)
+    print("departure_airports     " +depart_id, departure_airports)
 
+    found_flight_roundtrip=[]
+                
+    async with httpx.AsyncClient(timeout=60) as client:
+        flight_roundtrip_url = "https://booking-com18.p.rapidapi.com/flights/v2/min-price-roundtrip"
+        flight_roundtrip_querystring= {"departId":f"{depart_id}","arrivalId":f"{arrival_id}","departDate":f"{arrival_date}","returnDate":f"{departure_date}"}
+        flight_roundtrip_response = await  client.get(flight_roundtrip_url, headers=headers, params=flight_roundtrip_querystring)
+        flight_roundtrip_data = flight_roundtrip_response.json()
+        flight_roundtrip = flight_roundtrip_data.get("data", [])
+        print(flight_roundtrip)
+        for flight in flight_roundtrip:
+                if not isinstance(flight, dict):
+                    print("Unexpected flight format:", flight)
+                    continue
+                flight_info = {
+                            "departure_airport_info" : departure_airports,
+                            "arrival_airport_info":arrival_airports,
+                            "departure_date": flight.get("departureDate"),
+                            "return_date": flight.get("returnDate"),
+                            "is_cheapest": flight.get("isCheapest"),
+                            "price": flight.get("price").get("units"),
+                            "currency":flight.get("price").get("currencyCode"),
+                }
+                found_flight_roundtrip.append(flight_info)
+                print(found_flight_roundtrip)
 
-
-
-    flight_roundtrip_querystring= {"departId":f"{depart_id}","arrivalId":f"{arrival_id}","departDate":f"{arrival_date}","returnDate":f"{departure_date}"}
-    flight_roundtrip_url = "https://booking-com18.p.rapidapi.com/flights/v2/min-price-roundtrip"
-
-
-
-
+    return {"status": "Ok", "data": found_flight_roundtrip}
+       
 register_tortoise(
     app,
      db_url="sqlite://database.sqlite3",
