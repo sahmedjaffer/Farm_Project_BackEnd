@@ -7,6 +7,9 @@ name = "pypi"
 fastapi = {extras = ["all"], version = "*"}
 tortoise-orm = "*"
 uvicorn = "*"
+redis = "*"
+asyncio = "*"
+httpx = "*"
 
 [dev-packages]
 

@@ -1,1 +1,1 @@
-pipenv install tortoise-orm "fastapi[all]" uvicorn
+pipenv install tortoise-orm "fastapi[all]" uvicorn PyJWT "passlib[bcrypt]" requests

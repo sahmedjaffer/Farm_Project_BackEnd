@@ -14,6 +14,6 @@ class Preferences (Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
 
-#creare pydantic models
+#create pydantic models
 product_pydantic = pydantic_model_creator(Preferences, name ="Preferences")
 product_pydanticIn = pydantic_model_creator(Preferences, name="PreferencesIn", exclude_readonly = True)
