@@ -1,0 +1,111 @@
+{"selected_attraction": [
+"attraction_name":"",
+"attraction_description":"",
+"attraction_price":"",
+"currency":"",
+"availability_date":"",
+"attraction_daily_timing":"",
+review score and detail
+transportation availability
+recommended weather/time
+],
+
+"selected_hotel": [
+"hotel_name":"",
+"review_scoreWord":"",
+"review_score": 6.4,
+"gross_price": 0.328,
+"currency": "BHD",
+
+"check_in": {
+      "from": "00:00",
+      "until": "00:00"
+    },
+    "check_out": {
+      "from": "12:00",
+      "until": "13:00"
+    },
+    "score": {
+      "Wonderful": {
+        "percent": 50,
+        "count": 9
+      },
+      "Good": {
+        "percent": 6,
+        "count": 1
+      },
+      "Okay": {
+        "percent": 11,
+        "count": 2
+      },
+      "Poor": {
+        "percent": 6,
+        "count": 1
+      },
+      "Very Poor": {
+        "percent": 28,
+        "count": 5
+      }
+    }
+],
+
+["selected_flight": [
+
+"departure_airport_info": [
+      {
+        "airport_name": "Bahrain International Airport",
+        "airport_code": "BAH",
+        "city_name": "Manama",
+        "country_name": "Bahrain",
+        "distance_to_city": 6.736746645708489
+      }
+],
+"arrival_airport_info": [
+      {
+        "airport_name": "Baghdad International Airport",
+        "airport_code": "BGW",
+        "city_name": "Baghdad",
+        "country_name": "Iraq",
+        "distance_to_city": 14.137802859803832
+      }
+ ],
+ "outbound": [
+	"travellers_count": 1,
+        "price": 382.278,
+        "currency": "BHD",
+        "departure_country": "Bahrain",
+        "departure_airport": "Bahrain International Airport",
+        "arrival_city": "Baghdād",
+        "arrival_country": "Iraq",
+        "arrival_airport": "Baghdad International Airport",
+        "duration_seconds": 6300,
+        "duration_hours": 1.75,
+        "departure_time": "2025-08-08T07:10:00",
+        "arrival_time": "2025-08-08T08:55:00",
+        "cabin_class": "ECONOMY",
+        "flight_number": "201",
+        "carrier": "Gulf Air"
+],
+ "return": [
+        "travellers_count": 1,
+        "price": 382.278,
+        "currency": "BHD",
+        "departure_city": "Baghdād",
+        "departure_country": "Iraq",
+        "departure_airport": "Baghdad International Airport",
+        "arrival_city": "Manama",
+        "arrival_country": "Bahrain",
+        "arrival_airport": "Bahrain International Airport",
+        "duration_seconds": 18900,
+        "departure_time": "2025-08-08T07:10:00",
+        "arrival_time": "2025-08-08T08:55:00",
+        "duration_hours": 5.25,
+        "cabin_class": "ECONOMY",
+        "flight_number": "369",
+        "carrier": "Air Arabia"
+
+
+
+]],
+
+}
