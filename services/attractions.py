@@ -1,8 +1,7 @@
-import httpx, asyncio, json
+import httpx, asyncio, json,os
 from services.exchange_rate import ExchangeRateService
 from redis_client import redis_client
 from services.http_client import cached_get
-import os
 from dotenv import load_dotenv
 
 # Load .env before using os.getenv

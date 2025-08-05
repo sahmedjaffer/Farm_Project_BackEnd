@@ -1,8 +1,10 @@
 {"selected_attraction": [
 "attraction_name":"",
 "attraction_description":"",
-"attraction_price":"",
-"currency":"",
+"local_price":"",
+"local_currency":"",
+"original_price": price,
+"original_currency": currency
 "availability_date":"",
 "attraction_daily_timing":"",
 review score and detail
@@ -16,6 +18,8 @@ recommended weather/time
 "review_score": 6.4,
 "gross_price": 0.328,
 "currency": "BHD",
+"check_in":"",
+"check_out":"",
 
 "check_in": {
       "from": "00:00",
