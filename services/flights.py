@@ -1,6 +1,8 @@
 import httpx, asyncio, json, os
 from fastapi import HTTPException
 from typing import Dict, Any
+from models.user import User
+from models.flight import Flight, flight_pydantic,flight_pydanticIn
 from services.exchange_rate import ExchangeRateService
 from redis_client import redis_client
 from services.http_client import cached_get 
@@ -15,9 +17,6 @@ HEADERS = {
 }
 
 TIMEOUT = 30.0
-
-# API URLs
-
 
 # Cache & Concurrency settings
 CACHE_TTL = 86400  # 24 hours
@@ -185,3 +184,41 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
         }
         await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
         return result
+
+
+flightIn=flight_pydanticIn
+async def post_flight_service(flight_info:flightIn, current_user: User):  
+    
+    flight_obj = await Flight.create(
+        departure_airport_info = flight_info.departure_airport_info,
+        arrival_airport_info=flight_info.arrival_airport_info,
+        outbound_price= flight_info.outbound_price,
+        outbound_currency= flight_info.outbound_currency,
+        outbound_duration_hours=flight_info.outbound_duration_hours,
+        outbound_departure_time=flight_info.outbound_departure_time,
+        outbound_arrival_time=flight_info.outbound_arrival_time,
+        outbound_cabin_class = flight_info.outbound_cabin_class,
+        outbound_flight_number=flight_info.outbound_flight_number,
+        outbound_carrier = flight_info.outbound_carrier,
+        return_price= flight_info.return_price,
+        return_currency= flight_info.return_currency,
+        return_duration_hours=flight_info.return_duration_hours,
+        return_departure_time=flight_info.return_departure_time,
+        return_arrival_time=flight_info.return_arrival_time,
+        return_cabin_class = flight_info.return_cabin_class,
+        return_flight_number=flight_info.return_flight_number,
+        return_carrier = flight_info.return_carrier,
+        related_user_id=current_user.id
+    )
+    return {
+        "status": "Ok",
+        "data": await flight_pydantic.from_tortoise_orm(flight_obj)
+    }
+
+async def get_all_flights_service(current_user: User):
+    get_all_flights_res = await flight_pydantic.from_queryset(
+        Flight.filter(related_user=current_user.id)  
+    )
+    if not get_all_flights_res:
+        raise HTTPException(status_code=404, detail="No flights found for this user")
+    return {"status": "Ok", "data": get_all_flights_res}

@@ -77,7 +77,7 @@ review score and detail
         "currency": "BHD",
         "departure_country": "Bahrain",
         "departure_airport": "Bahrain International Airport",
-        "arrival_city": "Baghdād",
+        "arrival_city": "Baghdad",
         "arrival_country": "Iraq",
         "arrival_airport": "Baghdad International Airport",
         "duration_seconds": 6300,
@@ -92,7 +92,7 @@ review score and detail
         "travellers_count": 1,
         "price": 382.278,
         "currency": "BHD",
-        "departure_city": "Baghdād",
+        "departure_city": "Baghdad",
         "departure_country": "Iraq",
         "departure_airport": "Baghdad International Airport",
         "arrival_city": "Manama",
@@ -109,13 +109,3 @@ review score and detail
 ]],
 
 }
-
-
-
-
-
-
-
-    showPriceStrikethrough:false
-
-travellerPrices

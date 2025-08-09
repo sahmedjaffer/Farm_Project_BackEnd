@@ -1,4 +1,7 @@
+from fastapi import HTTPException
 import httpx, asyncio, json,os
+from models.attraction import Attraction, attraction_pydantic, attraction_pydanticIn
+from models.user import User
 from services.exchange_rate import ExchangeRateService
 from redis_client import redis_client
 from services.http_client import cached_get
@@ -189,3 +192,33 @@ async def build_attractions(client: httpx.AsyncClient, attractions: dict, attrac
         found_attractions.append(attraction_info)
 
     return found_attractions
+
+
+
+
+attractionIn=attraction_pydanticIn
+async def post_attraction_service(attraction_info:attractionIn, current_user: User):  
+    
+    attraction_obj = await Attraction.create(
+        attraction_name = attraction_info.attraction_name,
+        attraction_description=attraction_info.attraction_name,
+        attraction_price= attraction_info.attraction_name,
+        attraction_availability_date= attraction_info.attraction_name,
+        attraction_average_review=attraction_info.attraction_name,
+        attraction_total_review=attraction_info.attraction_name,
+        attraction_photo=attraction_info.attraction_name,
+        attraction_daily_timing= attraction_info.attraction_name,
+        related_user_id=current_user.id
+    )
+    return {
+        "status": "Ok",
+        "data": await attraction_pydantic.from_tortoise_orm(attraction_obj)
+    }
+
+async def get_all_attractions_service(current_user: User):
+    get_all_attractions_res = await attraction_pydantic.from_queryset(
+        Attraction.filter(related_user=current_user.id)  
+    )
+    if not get_all_attractions_res:
+        raise HTTPException(status_code=404, detail="No attractions found for this user")
+    return {"status": "Ok", "data": get_all_attractions_res}

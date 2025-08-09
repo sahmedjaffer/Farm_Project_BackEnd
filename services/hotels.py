@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 import httpx,asyncio,json,os
 from models.user import User
 from services.exchange_rate import ExchangeRateService
@@ -6,7 +6,6 @@ from redis_client import redis_client
 from services.http_client import cached_get
 from models.hotel import Hotel , hotel_pydantic, hotel_pydanticIn
 from dotenv import load_dotenv
-from auth import get_current_user
 
 # Load .env before using os.getenv
 load_dotenv() 
@@ -115,8 +114,8 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
         }
     }
 
-
-async def post_hotel_service(hotel_info:hotel_pydanticIn, current_user: User):
+hotelIn=hotel_pydanticIn
+async def post_hotel_service(hotel_info:hotelIn, current_user: User):
     
     hotel_obj = await Hotel.create(
         hotel_name = hotel_info.hotel_name,
@@ -133,3 +132,11 @@ async def post_hotel_service(hotel_info:hotel_pydanticIn, current_user: User):
         "status": "Ok",
         "data": await hotel_pydantic.from_tortoise_orm(hotel_obj)
     }
+
+async def get_all_hotels_service(current_user: User):
+    get_all_hotels_res = await hotel_pydantic.from_queryset(
+        Hotel.filter(related_user=current_user.id)  
+    )
+    if not get_all_hotels_res:
+        raise HTTPException(status_code=404, detail="No hotels found for this user")
+    return {"status": "Ok", "data": get_all_hotels_res}
