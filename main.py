@@ -1,5 +1,6 @@
 # ===== list hotels by city =====
 import asyncio, httpx
+from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import get_current_user
@@ -28,7 +29,7 @@ def index():
 #===== Test security ======
 @app.get("/users/profile")
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    print(get_current_user)
+    print(current_user.id)
     return {
         "email": current_user.email,
         "first_name": current_user.first_name,
@@ -55,17 +56,17 @@ async def get_all_users(current_user: User = Depends(get_current_user)):
 
 # ===== List a user by ID =====
 @app.get('/user/{user_id}', tags=["Users"], summary="List a user by ID")
-async def get_user_by_id(user_id: int, current_user: User = Depends(get_current_user)):
+async def get_user_by_id(user_id: UUID, current_user: User = Depends(get_current_user)):
     return await get_user_by_id_service(user_id, current_user)
 
 # ===== Update a user info by ID =====
 @app.patch('/user/{user_id}', tags=["Users"], summary="Update a user info by ID")
-async def update_user(user_id: int, update_info: user_pydanticIn, current_user: User = Depends(get_current_user)):
+async def update_user(user_id: UUID, update_info: user_pydanticIn, current_user: User = Depends(get_current_user)):
     return await update_user_service(user_id, update_info, current_user)
 
 # ===== Delete a user by ID =====
 @app.delete('/user/{user_id}', tags=["Users"], summary="Delete a user by ID")
-async def delete_user(user_id: int, current_user: User = Depends(get_current_user)):
+async def delete_user(user_id: UUID, current_user: User = Depends(get_current_user)):
     return await delete_user_service(user_id, current_user)
 
 # test external apis
@@ -82,19 +83,6 @@ async def get_hotels(
     departure_date: str = Query(..., description="Departure date YYYY-MM-DD"),
     page: int = Query(1, description="Page number", ge=1),
     sort_by: str = Query("price", description="Sort hotels by", regex="^(price|review_score|distance)$"),
-    
-# Default value: popularity
-
-# upsort_bh: Entire homes & apartments first
-# distance: Distance from city centre
-# popularity: Top picks for families
-# class_descending: Property rating (high to low)
-# class_ascending: Property rating (low to high)
-# bayesian_review_score: Guest review score
-# price: Price (low to high)
-
-
-
 
 
 ):
@@ -123,8 +111,8 @@ async def get_hotels(
     
 
 @app.post('/hotel', tags=["Hotel"], summary="Save user hotel")
-async def saveHotel(hotel_info: hotel_pydanticIn):
-    return await post_hotel_service(hotel_info)
+async def saveHotel(hotel_info: hotel_pydanticIn, current_user: User = Depends(get_current_user)):
+    return await post_hotel_service(hotel_info, current_user)
 
 
 

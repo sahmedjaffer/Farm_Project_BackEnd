@@ -1,4 +1,5 @@
 # services/authentication.py
+from zoneinfo import ZoneInfo
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from models.user import User, user_pydanticIn, user_pydantic
@@ -8,15 +9,15 @@ from datetime import datetime
 # ===== Login =====
 async def login_service(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await User.get_or_none(email=form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid credentials"
         )
 
-    # Update last login time
-    user.last_login = datetime.utcnow()
-    await user.save()
+    # # Update last login time
+    # user.last_login = datetime.now()
+    # await user.save(update_fields=["last_login"])
 
     access_token = create_access_token(data={"sub": user.email})
     return {
@@ -40,7 +41,8 @@ async def register_service(user_info: user_pydanticIn):
         first_name=user_info.first_name,
         last_name=user_info.last_name,
         email=user_info.email,
-        hashed_password=hashed_password
+        password=hashed_password,
+        # last_login=None 
     )
 
     return {

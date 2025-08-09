@@ -1,9 +1,12 @@
+from fastapi import Depends
 import httpx,asyncio,json,os
+from models.user import User
 from services.exchange_rate import ExchangeRateService
 from redis_client import redis_client
 from services.http_client import cached_get
 from models.hotel import Hotel , hotel_pydantic, hotel_pydanticIn
 from dotenv import load_dotenv
+from auth import get_current_user
 
 # Load .env before using os.getenv
 load_dotenv() 
@@ -23,7 +26,6 @@ async def get_location_id(city_name: str, client: httpx.AsyncClient):
     cache_key = f"hotel_location_id:{city_name.lower()}"
     cached = await redis_client.get(cache_key)
     if cached:
-        # ✅ يدعم سواء كانت القيمة bytes أو str
         return cached.decode() if isinstance(cached, bytes) else cached
 
     params = {"query": city_name}
@@ -114,9 +116,7 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
     }
 
 
-async def post_hotel_service(hotel_info:hotel_pydanticIn):
-    
-    
+async def post_hotel_service(hotel_info:hotel_pydanticIn, current_user: User):
     
     hotel_obj = await Hotel.create(
         hotel_name = hotel_info.hotel_name,
@@ -127,6 +127,7 @@ async def post_hotel_service(hotel_info:hotel_pydanticIn):
         hotel_check_in=hotel_info.hotel_check_in,
         hotel_check_out=hotel_info.hotel_check_out,
         hotel_score = hotel_info.hotel_score,
+        related_user_id=current_user.id
     )
     return {
         "status": "Ok",

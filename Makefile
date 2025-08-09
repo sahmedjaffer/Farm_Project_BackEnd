@@ -6,3 +6,6 @@ migrate:
 
 applymigrate:
 	aerich upgrade
+
+create:
+	aerich init-db

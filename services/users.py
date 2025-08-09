@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import Depends, HTTPException
 from models.user import User, user_pydantic, user_pydanticIn
 from auth import get_current_user
@@ -12,13 +13,13 @@ async def get_all_users_service(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No users found")
     return {"status": "Ok", "data": get_all_users_res}
 
-async def get_user_by_id_service(user_id: int, current_user: User = Depends(get_current_user)):
+async def get_user_by_id_service(user_id: UUID, current_user: User = Depends(get_current_user)):
     get_user_by_id_res = await user.from_queryset_single(User.get(id=user_id))
     if not get_user_by_id_res:
         raise HTTPException(status_code=404, detail="User not found")
     return {"status": "Ok", "data": get_user_by_id_res}
 
-async def update_user_service(user_id: int, update_info: userIn, current_user: User = Depends(get_current_user)):
+async def update_user_service(user_id: UUID, update_info: userIn, current_user: User = Depends(get_current_user)):
     get_update_user = await User.get(id=user_id)
     update_info = update_info.model_dump(exclude_unset=True)
     
@@ -33,6 +34,6 @@ async def update_user_service(user_id: int, update_info: userIn, current_user: U
     update_user_res = await user.from_tortoise_orm(get_update_user)
     return {"status": "Ok", "data": update_user_res}
 
-async def delete_user_service(user_id: int, current_user: User = Depends(get_current_user)):
+async def delete_user_service(user_id: UUID, current_user: User = Depends(get_current_user)):
     delete_user_res = await User.get(id=user_id).delete()
     return {"status": "Ok", "data": delete_user_res}
