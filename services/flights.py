@@ -145,7 +145,7 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
         data = await cached_get(os.getenv("FLIGHT_ROUNDTRIP_URL"), params=querystring, headers=HEADERS, ttl=7200)
 
 
-        flight_offers = data.get("data", {}).get("flightOffers", [])[:5]  # limit results
+        flight_offers = data.get("data", {}).get("flightOffers", [])[:10]  # limit results
 
         # Get exchange rate data once
         exchange_data = await ExchangeRateService.get_rates()

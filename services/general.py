@@ -22,9 +22,18 @@ async def get_weather_service(city: str):
             raise HTTPException(status_code=500, detail="Weather service not reachable")
 
     data = res.json()
+    # return {
+    #     "city": data["location"]["name"],
+    #     "country": data["location"]["country"],
+    #     "temperature": data["current"]["temp_c"],
+    #     "weather": data["current"]["condition"]["text"]
+    # }
     return {
-        "city": data["location"]["name"],
-        "country": data["location"]["country"],
-        "temperature": data["current"]["temp_c"],
-        "weather": data["current"]["condition"]["text"]
-    }
+    "city": data["location"]["name"],
+    "country": data["location"]["country"],
+    "temperature": data["current"]["temp_c"],
+    "feels_like": data["current"]["feelslike_c"],
+    "humidity": data["current"]["humidity"],
+    "wind_kph": data["current"]["wind_kph"],
+    "weather": data["current"]["condition"]["text"]
+}

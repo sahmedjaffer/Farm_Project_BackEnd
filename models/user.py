@@ -14,6 +14,7 @@ class User (Model):
     hashed_password = fields.CharField(max_length=100)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+    last_login = fields.DatetimeField(null=True)
 
 
 user_pydantic = pydantic_model_creator(User, name ="User")

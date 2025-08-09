@@ -1,9 +1,9 @@
 # ===== list hotels by city =====
 import asyncio, httpx
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import get_current_user
+from cors import init_cors
 from database import init_db
 from models.user import User, user_pydantic, user_pydanticIn
 from models.hotel import Hotel, hotel_pydantic,hotel_pydanticIn
@@ -15,19 +15,18 @@ from services.general import get_weather_service
 from services.hotels import build_hotel_info, get_hotel_reviews, get_hotels_data, get_location_id, post_hotel_service
 from services.users import delete_user_service, get_all_users_service, get_user_by_id_service, update_user_service
 
-
-
-
-
 app = FastAPI()
 init_db(app)
+init_cors(app)
 
 
 @app.get('/')
 def index():
     return{"Msg" : "go to /docs for the API documentations"}
 
-@app.get("/users/me")
+
+#===== Test security ======
+@app.get("/users/profile")
 async def read_users_me(current_user: User = Depends(get_current_user)):
     print(get_current_user)
     return {
@@ -81,17 +80,34 @@ async def get_hotels(
     city_name: str = Query(..., description="City name"),
     arrival_date: str = Query(..., description="Arrival date YYYY-MM-DD"),
     departure_date: str = Query(..., description="Departure date YYYY-MM-DD"),
+    page: int = Query(1, description="Page number", ge=1),
+    sort_by: str = Query("price", description="Sort hotels by", regex="^(price|review_score|distance)$"),
+    
+# Default value: popularity
+
+# upsort_bh: Entire homes & apartments first
+# distance: Distance from city centre
+# popularity: Top picks for families
+# class_descending: Property rating (high to low)
+# class_ascending: Property rating (low to high)
+# bayesian_review_score: Guest review score
+# price: Price (low to high)
+
+
+
+
+
 ):
     async with httpx.AsyncClient(timeout=30) as client:
         location_id = await get_location_id(city_name, client)
         if not location_id:
             raise HTTPException(status_code=404, detail="City not found")
 
-        hotels = await get_hotels_data(location_id, arrival_date, departure_date, client)
+        hotels = await get_hotels_data(location_id, arrival_date, departure_date, client, page, sort_by)
 
         rates_data = await ExchangeRateService.get_rates()
         base_currency_code = rates_data.get("base_currency", "BHD")
-        base_currency_date = rates_data.get("base_currency_date", "")
+        base_currency_date = rates_data.get("base_currency_date", 0)
 
         review_tasks = [get_hotel_reviews(hotel["id"], client) for hotel in hotels]
         reviews_list = await asyncio.gather(*review_tasks)
@@ -119,6 +135,8 @@ async def get_attraction(
     arrival_date: str = Query(..., description="Arrival date in YYYY-MM-DD format"),
     departure_date: str = Query(..., description="Departure date in YYYY-MM-DD format"),
     attraction_date: str = Query(..., description="Attraction date in YYYY-MM-DD format"),
+    page: int = Query(1, description="Page number", ge=1),
+    limit: int = Query(10, description="Number of results per page", ge=1, le=50),
 ):
     async with httpx.AsyncClient(timeout=30) as client:
         # Get attraction location ID (cached)
@@ -131,40 +149,62 @@ async def get_attraction(
         if not attractions_data or "products" not in attractions_data:
             return {"status": "No attractions found", "data": []}
 
+        total_results = len(attractions_data["products"])
+
+        # Pagination logic
+        start_index = (page - 1) * limit
+        end_index = start_index + limit
+        attractions_data["products"] = attractions_data["products"][start_index:end_index]
+
         # Get exchange rate info once (cached for 24h)
         exchange_data = await ExchangeRateService.get_rates()
         base_currency_code = exchange_data.get("base_currency", "BHD")
-        base_currency_date = exchange_data.get("base_currency_date", "")
+        base_currency_date = exchange_data.get("base_currency_date", 0)
 
         # Build attractions data (availability cached + semaphore to prevent 429)
         found_attractions = await build_attractions(client, attractions_data, attraction_date)
 
     return {
         "status": "Ok",
+        "page": page,
+        "limit": limit,
+        "total": total_results,
         "base_currency": base_currency_code,
         "base_currency_date": base_currency_date,
         "data": found_attractions
     }
 
 
-# ===== list flights by city =====
+# ===== list flights by city with pagination =====
 @app.get("/flight", tags=["Get flights info(New test)"])
 async def flight(
     city_name: str = Query(..., description="City name for arrival airport search"),
     arrival_date: str = Query(..., description="Arrival date in YYYY-MM-DD format"),
     departure_date: str = Query(..., description="Departure date in YYYY-MM-DD format"),
     departure_city_name: str = Query(..., description="Departure city name"),
+    page: int = Query(1, description="Page number", ge=1),
+    limit: int = Query(10, description="Number of results per page", ge=1, le=50),
 ):
     # Get exchange rate info once (cached for 24h)
     exchange_data = await ExchangeRateService.get_rates()
     base_currency_code = exchange_data.get("base_currency", "BHD")
-    base_currency_date = exchange_data.get("base_currency_date", "")
+    base_currency_date = exchange_data.get("base_currency_date", 0)
 
     # Get flights data
     flights = await get_flights(city_name, arrival_date, departure_date, departure_city_name)
 
+    total_results = len(flights)
+
+    # Pagination logic
+    start_index = (page - 1) * limit
+    end_index = start_index + limit
+    flights = flights[start_index:end_index]
+
     return {
         "status": "Ok",
+        "page": page,
+        "limit": limit,
+        "total": total_results,
         "base_currency": base_currency_code,
         "base_currency_date": base_currency_date,
         "data": flights
