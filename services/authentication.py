@@ -36,7 +36,8 @@ async def login_service(form_data: OAuth2PasswordRequestFormCustom = Depends()):
     }
 
 # ===== Register =====
-async def register_service(user_info: user_pydanticIn):
+userIn=user_pydanticIn
+async def register_service(user_info: userIn):
     existing_user = await User.get_or_none(email=user_info.email)
     if existing_user:
         raise HTTPException(
