@@ -67,10 +67,11 @@ async def get_flight_details_price(token: str):
             if resp.status_code != 200:
                 return {"price": None, "currency": None}
             data = resp.json()
-            price_info = data.get("data", {}).get("priceBreakdown", {}).get("total", {})
+            price_info_list= data.get("data", {}).get("travellerPrices", [])
+            price_info = price_info_list[0]
             result = {
-                "price": price_info.get("units"),
-                "currency": price_info.get("currencyCode")
+                "price": price_info.get("travellerPriceBreakdown", {}).get("totalRounded", {}).get("units"),
+                "currency": price_info.get("travellerPriceBreakdown", {}).get("totalRounded", {}).get("currencyCode"),
             }
             await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
             return result
@@ -80,6 +81,11 @@ def parse_segment(segment: Dict[str, Any], token: str, price_bhd: float,
                   base_currency: str, base_currency_date: str, travellers_count: int) -> Dict[str, Any]:
     legs_info = []
     for leg in segment.get("legs", []):
+        flight_number= str(
+        str(leg.get("flightInfo", {}).get("carrierInfo", {}).get("operatingCarrier")) +
+        str(leg.get("flightInfo", {}).get("flightNumber"))
+    )
+
         legs_info.append({
             "departure_time": leg.get("departureTime"),
             "arrival_time": leg.get("arrivalTime"),
@@ -90,8 +96,10 @@ def parse_segment(segment: Dict[str, Any], token: str, price_bhd: float,
             "departure_country": leg.get("departureAirport", {}).get("countryName"),
             "arrival_country": leg.get("arrivalAirport", {}).get("countryName"),
             "cabin_class": leg.get("cabinClass"),
-            "flight_number": str(leg.get("flightInfo", {}).get("flightNumber")),
-            "carrier": leg.get("carriersData", [{}])[0].get("name") if leg.get("carriersData") else None
+            "flight_number": flight_number,
+            "arrivalTerminal":leg.get("arrivalTerminal"),
+            "carrier": leg.get("carriersData", [{}])[0].get("name") if leg.get("carriersData") else None,
+            "carrier_logo": leg.get("carriersData", [{}])[0].get("logo") if leg.get("carriersData") else None,
         })
 
     return {
@@ -134,7 +142,7 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
             "departDate": arrival_date,
             "returnDate": departure_date
         }
-        data = await cached_get(os.getenv("FLIGHT_ROUNDTRIP_URL"), params=querystring, headers=HEADERS, ttl=7200)  # ساعتين
+        data = await cached_get(os.getenv("FLIGHT_ROUNDTRIP_URL"), params=querystring, headers=HEADERS, ttl=7200)
 
 
         flight_offers = data.get("data", {}).get("flightOffers", [])[:5]  # limit results
@@ -162,7 +170,7 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
 
             for seg in offer.get("segments", []):
                 parsed = parse_segment(seg, token, price_in_bhd,
-                                       base_currency_code, base_currency_date, travellers_count)
+                                       base_currency_code, base_currency_date, travellers_count,)
 
                 if seg.get("departureAirport", {}).get("code") == departure_id:
                     outbound_flights.append(parsed)

@@ -6,8 +6,6 @@
 "availability_date":"",
 "attraction_daily_timing":"",
 review score and detail
-transportation availability
-recommended weather/time
 ],
 
 "selected_hotel": [
@@ -25,7 +23,7 @@ recommended weather/time
       "from": "12:00",
       "until": "13:00"
     },
-    "score": {
+"score": {
       "Wonderful": {
         "percent": 50,
         "count": 9
@@ -49,7 +47,7 @@ recommended weather/time
     }
 ],
 
-["selected_flight": [
+"selected_flight": [
 
 "departure_airport_info": [
       {
@@ -104,8 +102,16 @@ recommended weather/time
         "flight_number": "369",
         "carrier": "Air Arabia"
 
-
-
 ]],
 
 }
+
+
+
+
+
+
+
+    showPriceStrikethrough:false
+
+travellerPrices

@@ -166,9 +166,19 @@ async def build_attractions(client: httpx.AsyncClient, attractions: dict, attrac
         if price is not None:
             price_in_bhd = await ExchangeRateService.convert_to_bhd(price, currency)
 
+
+
+            # primaryPhoto:small:"https://q-xx
+
         attraction_info = {
             "attraction_id": attraction.get("id"),
             "attraction_name": attraction.get("name"),
+            "allReviewsCount": (attraction.get("reviewsStats") or {}).get("allReviewsCount"),
+            "percentageReview": (attraction.get("reviewsStats") or {}).get("percentage"),
+            "averageReview": (attraction.get("numericReviewsStats") or {}).get("average"),
+            "totalReview": (attraction.get("numericReviewsStats") or {}).get("total"),
+            "allReviewsCount": (attraction.get("reviewsStats") or {}).get("allReviewsCount"),
+            "attractionPhoto": (attraction.get("primaryPhoto") or {}).get("small"),
             "attraction_description": descriptions[idx],
             "attraction_price": price_in_bhd,
             "currency": "BHD",

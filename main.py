@@ -6,12 +6,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from auth import get_current_user
 from database import init_db
 from models.user import User, user_pydantic, user_pydanticIn
+from models.hotel import Hotel, hotel_pydantic,hotel_pydanticIn
 from services.attractions import build_attractions, get_attraction_autocomplete, get_attractions_search
 from services.authentication import login_service, register_service
 from services.exchange_rate import ExchangeRateService
 from services.flights import get_flights
 from services.general import get_weather_service
-from services.hotels import build_hotel_info, get_hotel_reviews, get_hotels_data, get_location_id
+from services.hotels import build_hotel_info, get_hotel_reviews, get_hotels_data, get_location_id, post_hotel_service
 from services.users import delete_user_service, get_all_users_service, get_user_by_id_service, update_user_service
 
 
@@ -28,6 +29,7 @@ def index():
 
 @app.get("/users/me")
 async def read_users_me(current_user: User = Depends(get_current_user)):
+    print(get_current_user)
     return {
         "email": current_user.email,
         "first_name": current_user.first_name,
@@ -70,11 +72,11 @@ async def delete_user(user_id: int, current_user: User = Depends(get_current_use
 # test external apis
 
 # ===== get a city weather =====
-@app.get("/weather", tags=["get Weather info"])
+@app.get("/weather", tags=["Weather"], summary="find the weather")
 async def get_weather(city: str):
     return await get_weather_service(city)
 
-@app.get("/Hotels")
+@app.get("/hotel", tags=["Hotel"], summary="find hotels")
 async def get_hotels(
     city_name: str = Query(..., description="City name"),
     arrival_date: str = Query(..., description="Arrival date YYYY-MM-DD"),
@@ -102,11 +104,16 @@ async def get_hotels(
             hotel_infos.append(info)
 
         return hotel_infos
+    
+
+@app.post('/hotel', tags=["Hotel"], summary="Save user hotel")
+async def saveHotel(hotel_info: hotel_pydanticIn):
+    return await post_hotel_service(hotel_info)
 
 
 
 # ===== list attractions by city =====
-@app.get("/attraction", tags=["Get Attractions info (New test)"])
+@app.get("/attraction", tags=["Attraction"], summary="find attractions")
 async def get_attraction(
     city_name: str = Query(..., description="City name for attraction search"),
     arrival_date: str = Query(..., description="Arrival date in YYYY-MM-DD format"),

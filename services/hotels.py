@@ -1,8 +1,8 @@
-import httpx,asyncio,json
+import httpx,asyncio,json,os
 from services.exchange_rate import ExchangeRateService
 from redis_client import redis_client
 from services.http_client import cached_get
-import os
+from models.hotel import Hotel , hotel_pydantic, hotel_pydanticIn
 from dotenv import load_dotenv
 
 # Load .env before using os.getenv
@@ -109,4 +109,24 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
             "Poor": safe_score(3),
             "Very Poor": safe_score(4),
         }
+    }
+
+
+async def post_hotel_service(hotel_info:hotel_pydanticIn):
+    
+    
+    
+    hotel_obj = await Hotel.create(
+        hotel_name = hotel_info.hotel_name,
+        hotel_review_score_word=hotel_info.hotel_review_score_word,
+        hotel_review_score= hotel_info.hotel_review_score,
+        hotel_gross_price= hotel_info.hotel_gross_price,
+        hotel_currency=hotel_info.hotel_currency,
+        hotel_check_in=hotel_info.hotel_check_in,
+        hotel_check_out=hotel_info.hotel_check_out,
+        hotel_score = hotel_info.hotel_score,
+    )
+    return {
+        "status": "Ok",
+        "data": await hotel_pydantic.from_tortoise_orm(hotel_obj)
     }

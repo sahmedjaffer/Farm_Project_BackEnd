@@ -13,6 +13,5 @@ class Trips (Model):
 
 
 
-
 product_pydantic = pydantic_model_creator(Trips, name ="Trips")
 product_pydanticIn = pydantic_model_creator(Trips, name="TripsIn", exclude_readonly = True)
