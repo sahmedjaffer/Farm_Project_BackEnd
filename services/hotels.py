@@ -1,63 +1,82 @@
 from fastapi import Depends, HTTPException
-import httpx,asyncio,json,os
+import httpx, asyncio, json, os
 from models.user import User
 from services.exchange_rate import ExchangeRateService
-from redis_client import redis_client
+from config.redis_client import redis_client
 from services.http_client import cached_get
-from models.hotel import Hotel , hotel_pydantic, hotel_pydanticIn
+from models.hotel import Hotel, hotel_pydantic, hotel_pydanticIn
 from dotenv import load_dotenv
 
-# Load .env before using os.getenv
-load_dotenv() 
+# Load environment variables from .env before using os.getenv
+load_dotenv()
 
-CACHE_TTL = 86400  # 24 hours
+CACHE_TTL = 86400  # Cache time-to-live in seconds (24 hours)
 
+# Headers required for API calls, using credentials from environment variables
 HEADERS = {
     "x-rapidapi-key": os.getenv("RAPID_API_KEY"),
     "x-rapidapi-host": os.getenv("RAPID_API_HOST")
 }
 
-# Limit concurrent review requests
+# Limit the number of concurrent requests to hotel reviews to avoid rate limiting
 semaphore = asyncio.Semaphore(3)
 
 
 async def get_location_id(city_name: str, client: httpx.AsyncClient):
+    """
+    Get the location ID for a given city from the hotel autocomplete API.
+    Results are cached in Redis for 24 hours to reduce API calls.
+    """
     cache_key = f"hotel_location_id:{city_name.lower()}"
     cached = await redis_client.get(cache_key)
     if cached:
+        # Return cached location ID if available (decode bytes to string if necessary)
         return cached.decode() if isinstance(cached, bytes) else cached
 
+    # If not cached, make API request to get location ID
     params = {"query": city_name}
     response = await client.get(os.getenv("HOTEL_AUTO_COMPLETE_URL"), headers=HEADERS, params=params)
-    response.raise_for_status()
+    response.raise_for_status()  # Raise exception for bad HTTP status codes
     data = response.json()
     if not data.get("data"):
-        return None
+        return None  # No location data found
 
     location_id = data["data"][0]["id"]
-    await redis_client.setex(cache_key, 86400, str(location_id))  # Cache 24h
+    # Cache the location ID in Redis for 24 hours
+    await redis_client.setex(cache_key, 86400, str(location_id))
     return location_id
 
 
 async def get_hotels_data(location_id: str, arrival_date: str, departure_date: str, client: httpx.AsyncClient, page: int, sortBy: int):
+    """
+    Retrieve hotel search results for a given location and date range.
+    Uses cached_get utility to cache API responses for 24 hours.
+    """
     params = {
         "locationId": location_id,
         "checkinDate": arrival_date,
         "checkoutDate": departure_date,
-        "sortBy": "price",
+        "sortBy": "price",  # Sort hotels by price
         "units": "metric",
-        "page":page,
-        "sortBy":sortBy
+        "page": page,
+        "sortBy": sortBy
     }
-    data = await cached_get(os.getenv("HOTEL_SEARCH_URL"), params=params, headers=HEADERS, ttl=CACHE_TTL) 
+    # Fetch data from hotel search API with caching
+    data = await cached_get(os.getenv("HOTEL_SEARCH_URL"), params=params, headers=HEADERS, ttl=CACHE_TTL)
     return data.get("data", [])
 
 
 async def get_hotel_reviews(hotel_id: int, client: httpx.AsyncClient):
+    """
+    Get review scores for a specific hotel ID.
+    Results are cached in Redis for 6 hours.
+    Limits concurrent requests with a semaphore.
+    """
     cache_key = f"hotel_reviews:{hotel_id}"
 
     cached_data = await redis_client.get(cache_key)
     if cached_data:
+        # Return cached review data if available (decode bytes if needed)
         return json.loads(cached_data.decode() if isinstance(cached_data, bytes) else cached_data)
 
     async with semaphore:
@@ -66,14 +85,20 @@ async def get_hotel_reviews(hotel_id: int, client: httpx.AsyncClient):
         response.raise_for_status()
         data = response.json()
 
-    await redis_client.setex(cache_key, 21600, json.dumps(data))  # Cache 6h
+    # Cache the review data in Redis for 6 hours
+    await redis_client.setex(cache_key, 21600, json.dumps(data))
     return data
 
 
 async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_currency_date: str):
+    """
+    Build a detailed dictionary of hotel info, including price converted to BHD,
+    check-in/out times, and categorized review scores.
+    """
     score_percentages = review_scores.get("data", {}).get("score_percentage", [])
 
     def safe_score(index):
+        # Helper function to safely extract review score at a given index or return None if missing
         if len(score_percentages) > index:
             return {
                 "percent": score_percentages[index].get("percent"),
@@ -81,13 +106,16 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
             }
         return {"percent": None, "count": None}
 
+    # Extract price and currency from the hotel data
     price = hotel.get("priceBreakdown", {}).get("grossPrice", {}).get("value")
     currency = hotel.get("priceBreakdown", {}).get("grossPrice", {}).get("currency")
 
     price_in_bhd = None
     if price is not None and currency:
+        # Convert price to BHD using exchange rate service
         price_in_bhd = await ExchangeRateService.convert_to_bhd(price, currency)
 
+    # Construct and return a detailed hotel info dictionary
     return {
         "hotel_id": hotel.get("id"),
         "hotel_name": hotel.get("name"),
@@ -114,18 +142,22 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
         }
     }
 
-hotelIn=hotel_pydanticIn
-async def post_hotel_service(hotel_info:hotelIn, current_user: User):
-    
+
+hotelIn = hotel_pydanticIn
+async def post_hotel_service(hotel_info: hotelIn, current_user: User):
+    """
+    Create a new hotel record in the database linked to the current user.
+    Returns the saved hotel data in the response.
+    """
     hotel_obj = await Hotel.create(
-        hotel_name = hotel_info.hotel_name,
+        hotel_name=hotel_info.hotel_name,
         hotel_review_score_word=hotel_info.hotel_review_score_word,
-        hotel_review_score= hotel_info.hotel_review_score,
-        hotel_gross_price= hotel_info.hotel_gross_price,
+        hotel_review_score=hotel_info.hotel_review_score,
+        hotel_gross_price=hotel_info.hotel_gross_price,
         hotel_currency=hotel_info.hotel_currency,
         hotel_check_in=hotel_info.hotel_check_in,
         hotel_check_out=hotel_info.hotel_check_out,
-        hotel_score = hotel_info.hotel_score,
+        hotel_score=hotel_info.hotel_score,
         related_user_id=current_user.id
     )
     return {
@@ -133,9 +165,14 @@ async def post_hotel_service(hotel_info:hotelIn, current_user: User):
         "data": await hotel_pydantic.from_tortoise_orm(hotel_obj)
     }
 
+
 async def get_all_hotels_service(current_user: User):
+    """
+    Retrieve all hotel records linked to the current user.
+    Raises HTTP 404 if no hotels are found.
+    """
     get_all_hotels_res = await hotel_pydantic.from_queryset(
-        Hotel.filter(related_user=current_user.id)  
+        Hotel.filter(related_user=current_user.id)
     )
     if not get_all_hotels_res:
         raise HTTPException(status_code=404, detail="No hotels found for this user")

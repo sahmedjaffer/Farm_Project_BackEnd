@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "your-cloud-host")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))  # default to 6379 if missing
+REDIS_PORT = os.getenv("REDIS_PORT", 6379)
 REDIS_USER = os.getenv("REDIS_USER", "default")
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "your-password")
 
