@@ -1,47 +1,60 @@
-import httpx, asyncio, json,os
+from fastapi import HTTPException
+import httpx, asyncio, json, os
+from models.attraction import Attraction, attraction_pydantic, attraction_pydanticIn
+from models.user import User
 from services.exchange_rate import ExchangeRateService
-from redis_client import redis_client
+from config.redis_client import redis_client
 from services.http_client import cached_get
 from dotenv import load_dotenv
 
-# Load .env before using os.getenv
+# Load environment variables from .env file before accessing them
 load_dotenv() 
 
+# Prepare headers for API calls, using API keys from environment variables
 HEADERS = {
     "x-rapidapi-key": os.getenv("RAPID_API_KEY"),
     "x-rapidapi-host": os.getenv("RAPID_API_HOST")
 }
 
-# Limit concurrent API calls to avoid hitting 429 rate limit
+# Limit number of concurrent API requests to 3 to avoid rate limiting (HTTP 429 errors)
 semaphore = asyncio.Semaphore(3)
-CACHE_TTL = 86400  # 24 hours
+
+# Cache time-to-live (TTL) in seconds (24 hours)
+CACHE_TTL = 86400  
 
 
 async def get_attraction_autocomplete(client: httpx.AsyncClient, city_name: str):
-    """Get attraction location ID by city name (cached)."""
-    cache_key = f"attraction_autocomplete:{city_name.lower()}"
-    cached = await redis_client.get(cache_key)
+    """
+    Search for attraction location ID by city name, using Redis cache to avoid repeated API calls.
+    """
+    cache_key = f"attraction_autocomplete:{city_name.lower()}"  # Cache key based on city name
+    cached = await redis_client.get(cache_key)  # Try to get cached result
     if cached:
-        return json.loads(cached)
+        return json.loads(cached)  # Return cached data if exists
 
+    # Use semaphore to limit concurrent API calls
     async with semaphore:
         url = os.getenv("ATTRACTION_AUTO_COMPLETE_URL")
         params = {"query": city_name}
+        # Call external API with caching helper function
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     products = data.get("data", {}).get("products")
     if not products:
-        return None
+        return None  # No products found
 
-    result = products[0]["id"]
+    result = products[0]["id"]  # Take the first product ID as result
+    # Cache the result in Redis with expiry
     await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
     return result
 
 
 async def get_attractions_search(client: httpx.AsyncClient, attraction_id: str, arrival_date: str, departure_date: str):
-    """Search attractions by location ID and date range (cached)."""
+    """
+    Search for attractions by location ID and date range, with caching.
+    """
     cache_key = f"attraction_search:{attraction_id}:{arrival_date}:{departure_date}"
-    cached = await redis_client.get(cache_key)
+    cached = await redis_client.get(cache_key)  # Check cache first
     if cached:
         return json.loads(cached)
 
@@ -51,12 +64,14 @@ async def get_attractions_search(client: httpx.AsyncClient, attraction_id: str, 
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     result = data.get("data", {})
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))  # Cache the fresh result
     return result
 
 
 async def get_availability_calendar(client: httpx.AsyncClient, attraction_id: str):
-    """Get attraction availability calendar (cached)."""
+    """
+    Get availability calendar for a given attraction (cached).
+    """
     cache_key = f"availability_calendar:{attraction_id}"
     cached = await redis_client.get(cache_key)
     if cached:
@@ -73,7 +88,9 @@ async def get_availability_calendar(client: httpx.AsyncClient, attraction_id: st
 
 
 async def get_availability(client: httpx.AsyncClient, attraction_id: str, attraction_date: str):
-    """Get attraction availability for a specific date (cached)."""
+    """
+    Get availability information for a specific date of an attraction (cached).
+    """
     cache_key = f"availability:{attraction_id}:{attraction_date}"
     cached = await redis_client.get(cache_key)
     if cached:
@@ -90,18 +107,24 @@ async def get_availability(client: httpx.AsyncClient, attraction_id: str, attrac
 
 
 async def fetch_availability_data(client: httpx.AsyncClient, attraction_id: str, attraction_date: str):
-    """Fetch both availability calendar and available times for an attraction."""
+    """
+    Fetch availability calendar and specific date availability concurrently.
+    Returns lists of available dates and available time slots.
+    """
+    # Fetch calendar and date availability concurrently for performance
     calendar_data, availability_data = await asyncio.gather(
         get_availability_calendar(client, attraction_id),
         get_availability(client, attraction_id, attraction_date)
     )
 
+    # Filter available dates where "available" is not "false"
     available_dates = [
         {"availability_date": cal.get("date")}
         for cal in calendar_data
         if cal.get("available") != "false"
     ]
 
+    # Extract available start times
     available_times = [
         {"start_at": avail.get("start")}
         for avail in availability_data
@@ -111,7 +134,9 @@ async def fetch_availability_data(client: httpx.AsyncClient, attraction_id: str,
 
 
 async def get_attraction_detail(slug: str):
-    """Get full attraction description using its slug (cached)."""
+    """
+    Fetch full attraction description by slug, using caching to reduce API calls.
+    """
     if not slug:
         return None
 
@@ -131,30 +156,33 @@ async def get_attraction_detail(slug: str):
 
 
 async def build_attractions(client: httpx.AsyncClient, attractions: dict, attraction_date: str):
-    """Build detailed attractions data including availability and description."""
+    """
+    Build a detailed list of attractions with availability, descriptions, and price conversions.
+    """
     found_attractions = []
     tasks = []
 
-    # Get exchange rate data once
+    # Get exchange rates once to convert all prices to BHD (Bahraini Dinar)
     exchange_data = await ExchangeRateService.get_rates()
     base_currency_code = exchange_data.get("base_currency", "BHD")
     base_currency_date = exchange_data.get("base_currency_date", "")
 
-    # Fetch availability for all attractions in parallel
+    # Prepare asynchronous tasks to fetch availability data for all attractions
     for attraction in attractions.get("products", []):
         attr_id = attraction.get("id")
         tasks.append(fetch_availability_data(client, attr_id, attraction_date))
 
+    # Run all availability fetches concurrently
     availability_results = await asyncio.gather(*tasks)
 
-    # Fetch descriptions in parallel
+    # Prepare tasks to fetch attraction descriptions concurrently
     detail_tasks = [
         get_attraction_detail(attraction.get("slug"))
         for attraction in attractions.get("products", [])
     ]
     descriptions = await asyncio.gather(*detail_tasks)
 
-    # Build final attractions list
+    # Combine all data to build the final list of attraction info dictionaries
     for idx, (attraction, (available_dates, available_times)) in enumerate(
         zip(attractions.get("products", []), availability_results)
     ):
@@ -163,13 +191,20 @@ async def build_attractions(client: httpx.AsyncClient, attractions: dict, attrac
 
         price_in_bhd = None
         if price is not None:
+            # Convert price to BHD currency
             price_in_bhd = await ExchangeRateService.convert_to_bhd(price, currency)
 
         attraction_info = {
             "attraction_id": attraction.get("id"),
             "attraction_name": attraction.get("name"),
-            "attraction_description": descriptions[idx],
-            "attraction_price": price_in_bhd,
+            "allReviewsCount": (attraction.get("reviewsStats") or {}).get("allReviewsCount"),
+            "percentageReview": (attraction.get("reviewsStats") or {}).get("percentage"),
+            "averageReview": (attraction.get("numericReviewsStats") or {}).get("average"),
+            "totalReview": (attraction.get("numericReviewsStats") or {}).get("total"),
+            "allReviewsCount": (attraction.get("reviewsStats") or {}).get("allReviewsCount"),
+            "attractionPhoto": (attraction.get("primaryPhoto") or {}).get("small"),
+            "attraction_description": descriptions[idx],  # Use cached or fetched description
+            "attraction_price": price_in_bhd,  # Price converted to BHD
             "currency": "BHD",
             "base_currency": base_currency_code,
             "base_currency_date": base_currency_date,
@@ -179,3 +214,41 @@ async def build_attractions(client: httpx.AsyncClient, attractions: dict, attrac
         found_attractions.append(attraction_info)
 
     return found_attractions
+
+
+# Pydantic input model for attraction data
+attractionIn = attraction_pydanticIn
+
+async def post_attraction_service(attraction_info: attractionIn, current_user: User):
+    """
+    Create a new attraction record in the database linked to the current user.
+    """
+    attraction_obj = await Attraction.create(
+        attraction_name=attraction_info.attraction_name,
+        attraction_description=attraction_info.attraction_name,
+        attraction_price=attraction_info.attraction_name,
+        attraction_availability_date=attraction_info.attraction_name,
+        attraction_average_review=attraction_info.attraction_name,
+        attraction_total_review=attraction_info.attraction_name,
+        attraction_photo=attraction_info.attraction_name,
+        attraction_daily_timing=attraction_info.attraction_name,
+        related_user_id=current_user.id
+    )
+    # Return the newly created attraction data as Pydantic model
+    return {
+        "status": "Ok",
+        "data": await attraction_pydantic.from_tortoise_orm(attraction_obj)
+    }
+
+
+async def get_all_attractions_service(current_user: User):
+    """
+    Retrieve all attractions related to the current user from the database.
+    Raise 404 error if none found.
+    """
+    get_all_attractions_res = await attraction_pydantic.from_queryset(
+        Attraction.filter(related_user=current_user.id)
+    )
+    if not get_all_attractions_res:
+        raise HTTPException(status_code=404, detail="No attractions found for this user")
+    return {"status": "Ok", "data": get_all_attractions_res}

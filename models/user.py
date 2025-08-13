@@ -11,11 +11,9 @@ class User (Model):
     first_name = fields.CharField(max_length=30, nullable=False)
     last_name = fields.CharField(max_length=30, nullable=False)
     email = fields.CharField(max_length=100)
-    hashed_password = fields.CharField(max_length=100)
+    password = fields.CharField(max_length=100)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
-    last_login = fields.DatetimeField(null=True)
-
 
 user_pydantic = pydantic_model_creator(User, name ="User")
 user_pydanticIn = pydantic_model_creator(User, name="UserIn", exclude_readonly = True)

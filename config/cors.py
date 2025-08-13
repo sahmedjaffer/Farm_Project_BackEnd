@@ -10,7 +10,7 @@ def init_cors(app):
     # Detect the environment: development or production
     ENV = os.getenv("ENV")  # Default to "development" if not set
 
-    if ENV == "dev":
+    if ENV == "dev" or ENV =="DEV":
         # Allowed origins in development environment
         origins = [
             "http://localhost:3000",  # Local React dev server
