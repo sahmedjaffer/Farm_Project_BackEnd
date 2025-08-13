@@ -117,7 +117,6 @@ async def get_hotels(
 
 
 
-# ===== list attractions by city =====
 # ===== list attractions by city with pagination =====
 @app.get("/attraction", tags=["Get Attractions info (New test)"])
 async def get_attraction(
