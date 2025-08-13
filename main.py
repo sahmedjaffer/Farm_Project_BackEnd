@@ -81,21 +81,7 @@ async def get_hotels(
     arrival_date: str = Query(..., description="Arrival date YYYY-MM-DD"),
     departure_date: str = Query(..., description="Departure date YYYY-MM-DD"),
     page: int = Query(1, description="Page number", ge=1),
-    sort_by: str = Query("price", description="Sort hotels by", regex="^(price|review_score|distance)$"),
-    
-# Default value: popularity
-
-# upsort_bh: Entire homes & apartments first
-# distance: Distance from city centre
-# popularity: Top picks for families
-# class_descending: Property rating (high to low)
-# class_ascending: Property rating (low to high)
-# bayesian_review_score: Guest review score
-# price: Price (low to high)
-
-
-
-
+    sort_by: str = Query("price", description="Sort hotels by", regex="^(price: Price (low to high)|distance: Distance from city centre|class_descending: Property rating (high to low)|popularity: Top picks for families|bayesian_review_score: Guest review score)$"),
 
 ):
     async with httpx.AsyncClient(timeout=30) as client:
