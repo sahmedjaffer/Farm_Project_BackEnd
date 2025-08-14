@@ -3,7 +3,7 @@ import httpx, asyncio, json, os
 from models.attraction import Attraction, attraction_pydantic, attraction_pydanticIn
 from models.user import User
 from services.exchange_rate import ExchangeRateService
-from config.redis_client import redis_client
+from config.redis_client import get_redis_client
 from services.http_client import cached_get
 from dotenv import load_dotenv
 
@@ -28,7 +28,7 @@ async def get_attraction_autocomplete(client: httpx.AsyncClient, city_name: str)
     Search for attraction location ID by city name, using Redis cache to avoid repeated API calls.
     """
     cache_key = f"attraction_autocomplete:{city_name.lower()}"  # Cache key based on city name
-    cached = await redis_client.get(cache_key)  # Try to get cached result
+    cached = await get_redis_client().get(cache_key)  # Try to get cached result
     if cached:
         return json.loads(cached)  # Return cached data if exists
 
@@ -45,7 +45,7 @@ async def get_attraction_autocomplete(client: httpx.AsyncClient, city_name: str)
 
     result = products[0]["id"]  # Take the first product ID as result
     # Cache the result in Redis with expiry
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
     return result
 
 
@@ -54,7 +54,7 @@ async def get_attractions_search(client: httpx.AsyncClient, attraction_id: str, 
     Search for attractions by location ID and date range, with caching.
     """
     cache_key = f"attraction_search:{attraction_id}:{arrival_date}:{departure_date}"
-    cached = await redis_client.get(cache_key)  # Check cache first
+    cached = await get_redis_client().get(cache_key)  # Check cache first
     if cached:
         return json.loads(cached)
 
@@ -64,7 +64,7 @@ async def get_attractions_search(client: httpx.AsyncClient, attraction_id: str, 
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     result = data.get("data", {})
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))  # Cache the fresh result
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))  # Cache the fresh result
     return result
 
 
@@ -73,7 +73,7 @@ async def get_availability_calendar(client: httpx.AsyncClient, attraction_id: st
     Get availability calendar for a given attraction (cached).
     """
     cache_key = f"availability_calendar:{attraction_id}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         return json.loads(cached)
 
@@ -83,7 +83,7 @@ async def get_availability_calendar(client: httpx.AsyncClient, attraction_id: st
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     result = data.get("data", [])
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
     return result
 
 
@@ -92,7 +92,7 @@ async def get_availability(client: httpx.AsyncClient, attraction_id: str, attrac
     Get availability information for a specific date of an attraction (cached).
     """
     cache_key = f"availability:{attraction_id}:{attraction_date}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         return json.loads(cached)
 
@@ -102,7 +102,7 @@ async def get_availability(client: httpx.AsyncClient, attraction_id: str, attrac
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     result = data.get("data", [])
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
     return result
 
 
@@ -141,7 +141,7 @@ async def get_attraction_detail(slug: str):
         return None
 
     cache_key = f"attraction_detail:{slug}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         return json.loads(cached)
 
@@ -151,7 +151,7 @@ async def get_attraction_detail(slug: str):
         data = await cached_get(url, params=params, headers=HEADERS, ttl=CACHE_TTL)
 
     description = data.get("data", {}).get("description")
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(description))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(description))
     return description
 
 

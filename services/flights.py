@@ -4,7 +4,7 @@ from typing import Dict, Any
 from models.user import User
 from models.flight import Flight, flight_pydantic, flight_pydanticIn
 from services.exchange_rate import ExchangeRateService
-from config.redis_client import redis_client
+from config.redis_client import get_redis_client
 from services.http_client import cached_get 
 from dotenv import load_dotenv
 
@@ -31,7 +31,7 @@ async def get_airport_info(client: httpx.AsyncClient, city: str):
     Returns a tuple: (first airport code found, list of airports in city)
     """
     cache_key = f"airport_info:{city}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         # Return cached airport info if available
         return json.loads(cached)
@@ -63,7 +63,7 @@ async def get_airport_info(client: httpx.AsyncClient, city: str):
     result = (airport_id, airports)
 
     # Cache the airport info in Redis
-    await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
     return result
 
 
@@ -73,7 +73,7 @@ async def get_flight_details_price(token: str):
     Cache results in Redis.
     """
     cache_key = f"flight_price:{token}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         # Return cached price info if available
         return json.loads(cached)
@@ -97,7 +97,7 @@ async def get_flight_details_price(token: str):
             }
 
             # Cache price info in Redis
-            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+            await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
             return result
 
 
@@ -165,7 +165,7 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
     - Caches results in Redis.
     """
     cache_key = f"flights:{city_name}:{arrival_date}:{departure_date}:{departure_city_name}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         # Return cached flight offers if available
         return json.loads(cached)
@@ -239,7 +239,7 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
         }
 
         # Cache the flight results in Redis for CACHE_TTL duration
-        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+        await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(result))
         return result
 
 

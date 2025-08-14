@@ -2,7 +2,7 @@ import time
 import json
 import httpx
 from fastapi import HTTPException
-from config.redis_client import redis_client
+from config.redis_client import get_redis_client
 import os
 from dotenv import load_dotenv
 
@@ -42,7 +42,7 @@ class ExchangeRateService:
 
         # Try to get cached data from Redis
         redis_key = f"exchange_rates:{base_currency}"
-        cached = await redis_client.get(redis_key)
+        cached = await get_redis_client().get(redis_key)
         if cached:
             data = json.loads(cached)
             # Update in-memory cache and last fetch time
@@ -80,7 +80,7 @@ class ExchangeRateService:
             }
 
             # Cache the result in Redis for subsequent requests
-            await redis_client.setex(redis_key, CACHE_TTL, json.dumps(result))
+            await get_redis_client().setex(redis_key, CACHE_TTL, json.dumps(result))
 
             # Update in-memory cache and timestamp
             cls._rates_cache = result
@@ -123,4 +123,4 @@ class ExchangeRateService:
         cls._rates_cache = None
         cls._last_fetch_time = 0
         redis_key = f"exchange_rates:{base_currency}"
-        await redis_client.delete(redis_key)
+        await get_redis_client().delete(redis_key)

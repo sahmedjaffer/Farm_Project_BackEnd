@@ -1,5 +1,5 @@
 import json, httpx, asyncio
-from config.redis_client import redis_client
+from config.redis_client import get_redis_client
 
 # Limit concurrent HTTP requests to avoid overwhelming the API or hitting rate limits
 semaphore = asyncio.Semaphore(3)
@@ -15,7 +15,7 @@ async def cached_get(url: str, params=None, headers=None, ttl: int = 3600):
     cache_key = f"http_cache:{url}:{json.dumps(params, sort_keys=True)}"
     
     # Try to get cached response data from Redis
-    cached_data = await redis_client.get(cache_key)
+    cached_data = await get_redis_client().get(cache_key)
     if cached_data:
         # If cached data found, deserialize JSON and return immediately
         return json.loads(cached_data)
@@ -39,7 +39,7 @@ async def cached_get(url: str, params=None, headers=None, ttl: int = 3600):
             data = response.json()
 
     # Cache the response data in Redis with specified TTL (time-to-live)
-    await redis_client.setex(cache_key, ttl, json.dumps(data))
+    await get_redis_client().setex(cache_key, ttl, json.dumps(data))
     
     # Return the fresh response data
     return data

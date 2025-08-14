@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException
 import httpx, asyncio, json, os
 from models.user import User
 from services.exchange_rate import ExchangeRateService
-from config.redis_client import redis_client
+from config.redis_client import get_redis_client
 from services.http_client import cached_get
 from models.hotel import Hotel, hotel_pydantic, hotel_pydanticIn
 from dotenv import load_dotenv
@@ -21,14 +21,13 @@ HEADERS = {
 # Limit the number of concurrent requests to hotel reviews to avoid rate limiting
 semaphore = asyncio.Semaphore(3)
 
-
 async def get_location_id(city_name: str, client: httpx.AsyncClient):
     """
     Get the location ID for a given city from the hotel autocomplete API.
     Results are cached in Redis for 24 hours to reduce API calls.
     """
     cache_key = f"hotel_location_id:{city_name.lower()}"
-    cached = await redis_client.get(cache_key)
+    cached = await get_redis_client().get(cache_key)
     if cached:
         # Return cached location ID if available (decode bytes to string if necessary)
         return cached.decode() if isinstance(cached, bytes) else cached
@@ -43,7 +42,7 @@ async def get_location_id(city_name: str, client: httpx.AsyncClient):
 
     location_id = data["data"][0]["id"]
     # Cache the location ID in Redis for 24 hours
-    await redis_client.setex(cache_key, 86400, str(location_id))
+    await get_redis_client().setex(cache_key, 86400, str(location_id))
     return location_id
 
 
@@ -56,7 +55,6 @@ async def get_hotels_data(location_id: str, arrival_date: str, departure_date: s
         "locationId": location_id,
         "checkinDate": arrival_date,
         "checkoutDate": departure_date,
-        "sortBy": "price",  # Sort hotels by price
         "units": "metric",
         "page": page,
         "sortBy": sortBy
@@ -74,23 +72,100 @@ async def get_hotel_reviews(hotel_id: int, client: httpx.AsyncClient):
     """
     cache_key = f"hotel_reviews:{hotel_id}"
 
-    cached_data = await redis_client.get(cache_key)
+    cached_data = await get_redis_client().get(cache_key)
     if cached_data:
         # Return cached review data if available (decode bytes if needed)
         return json.loads(cached_data.decode() if isinstance(cached_data, bytes) else cached_data)
 
     async with semaphore:
+        await asyncio.sleep(0.4)
         params = {"hotelId": hotel_id}
         response = await client.get(os.getenv("HOTEL_REVIEW_SCORES_URL"), headers=HEADERS, params=params)
         response.raise_for_status()
         data = response.json()
 
     # Cache the review data in Redis for 6 hours
-    await redis_client.setex(cache_key, 21600, json.dumps(data))
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(data))
     return data
 
+async def fetch_with_retry(client, url, params=None, max_retries=6):
+    for attempt in range(max_retries):
+        try:
+            async with semaphore:
+                response = await client.get(url, headers=HEADERS, params=params)
+            if response.status_code == 429:
+                await asyncio.sleep(2 ** attempt)  # exponential backoff
+                continue
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise
+    raise Exception(f"Failed after {max_retries} retries due to 429 for URL: {url}")
 
-async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_currency_date: str):
+
+
+async def get_hotel_full_detail(hotel_id: int, client: httpx.AsyncClient, arrival_date: str, departure_date: str):
+    """
+    Fetches hotel booking URL, address, spoken languages, and photo URL.
+    Caches results in Redis for 6 hours.
+    """
+    cache_key = f"hotel_full_detail:{hotel_id}"
+    cached_data = await get_redis_client().get(cache_key)
+    if cached_data:
+        cached_dict = json.loads(cached_data.decode() if isinstance(cached_data, bytes) else cached_data)
+
+        data_content = cached_dict.get("data") or {}
+        hotel_booking_url = data_content.get("url", "")
+        hotel_address = data_content.get("hotel_address_line", "Address not available")
+        spoken_lang = data_content.get("spoken_languages", [])
+        hotel_photo_url = cached_dict.get("hotel_photo_url", "")
+        return {
+            "hotel_booking_url": hotel_booking_url,
+            "hotel_address": hotel_address,
+            "spoken_languages": spoken_lang,
+            "hotel_photo_url": hotel_photo_url
+        }
+
+
+    # --- Fetch hotel details ---
+    details_params = {"hotelId": hotel_id, "checkinDate": arrival_date, "checkoutDate": departure_date}
+    details_data = await fetch_with_retry(client, os.getenv("HOTEL_DETAILS_URL"), details_params)
+    # print(details_data)
+    data_content = details_data.get("data")
+    # print(data_content)
+    hotel_booking_url = data_content.get("url")
+    # print(hotel_booking_url)
+    hotel_address = data_content.get("hotel_address_line")
+    # print(hotel_address)
+
+
+    # --- Fetch hotel photo ---
+    photo_params = {"hotelId": hotel_id}
+    photo_data = await fetch_with_retry(client, os.getenv("HOTEL_PHOTO_URL"), photo_params)
+    try:
+        hotel_photo = photo_data.get("data", {}).get("data", {}).get(str(hotel_id), [[[],[],[],[],[]]])[0][4][5]
+        base_url = photo_data.get("data", {}).get("url_prefix", "")
+    except (KeyError, IndexError, TypeError):
+        hotel_photo = ""
+        base_url = ""
+    hotel_photo_url = base_url + hotel_photo
+
+    full_detail = {
+        "hotel_booking_url": hotel_booking_url,
+        "hotel_address": hotel_address,
+        "hotel_photo_url": hotel_photo_url
+    }
+
+    #Cache for 6 hours
+    await get_redis_client().setex(cache_key, CACHE_TTL, json.dumps(full_detail))
+    return full_detail
+
+
+# ===== Build hotel info =====
+async def assemble_hotel_info(hotel, review_scores, hotel_booking_url, hotel_photo_url, hotel_address, base_currency_code: str, base_currency_date: str):
     """
     Build a detailed dictionary of hotel info, including price converted to BHD,
     check-in/out times, and categorized review scores.
@@ -98,7 +173,6 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
     score_percentages = review_scores.get("data", {}).get("score_percentage", [])
 
     def safe_score(index):
-        # Helper function to safely extract review score at a given index or return None if missing
         if len(score_percentages) > index:
             return {
                 "percent": score_percentages[index].get("percent"),
@@ -106,21 +180,21 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
             }
         return {"percent": None, "count": None}
 
-    # Extract price and currency from the hotel data
     price = hotel.get("priceBreakdown", {}).get("grossPrice", {}).get("value")
     currency = hotel.get("priceBreakdown", {}).get("grossPrice", {}).get("currency")
 
     price_in_bhd = None
     if price is not None and currency:
-        # Convert price to BHD using exchange rate service
         price_in_bhd = await ExchangeRateService.convert_to_bhd(price, currency)
 
-    # Construct and return a detailed hotel info dictionary
     return {
         "hotel_id": hotel.get("id"),
         "hotel_name": hotel.get("name"),
+        "hotel_address": hotel_address,
         "review_scoreWord": hotel.get("reviewScoreWord"),
         "review_score": hotel.get("reviewScore"),
+        "hotel_booking_url": hotel_booking_url,
+        "hotel_photo_url": hotel_photo_url,
         "local_price": price_in_bhd,
         "currency": "BHD" if price_in_bhd else currency,
         "original_price": price,
@@ -141,6 +215,8 @@ async def build_hotel_info(hotel, review_scores, base_currency_code: str, base_c
             "Very Poor": safe_score(4),
         }
     }
+
+
 
 
 hotelIn = hotel_pydanticIn

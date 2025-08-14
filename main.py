@@ -21,7 +21,7 @@ from services.exchange_rate import ExchangeRateService
 from services.flights import get_all_flights_service, get_flights, post_flight_service
 from services.general import get_weather_service
 from services.hotels import (
-    build_hotel_info, get_all_hotels_service, get_hotel_reviews,
+     assemble_hotel_info, get_all_hotels_service, get_hotel_full_detail, get_hotel_reviews,
     get_hotels_data, get_location_id, post_hotel_service
 )
 from services.users import (
@@ -101,7 +101,6 @@ async def get_weather(city: str):
     # Fetches current weather info for the requested city from an external API
     return await get_weather_service(city)
 
-
 # ===== Search hotels =====
 @app.get("/hotel", tags=["Hotel"], summary="Find hotels")
 async def get_hotels(
@@ -109,33 +108,55 @@ async def get_hotels(
     arrival_date: str = Query(..., description="Arrival date YYYY-MM-DD"),
     departure_date: str = Query(..., description="Departure date YYYY-MM-DD"),
     page: int = Query(1, description="Page number", ge=1),
-    sort_by: str = Query("price", description="Sort hotels by", regex="^(price|review_score|distance)$"),
+    sort_by: str = Query("price", description="Sort hotels by", regex="^(price|review_score|distance|upsort_bh|popularity|class_descending|class_ascending|bayesian_review_score)$"),
 ):
-    # Uses external APIs to find hotels in the given city between specified dates,
-    # applies pagination and sorting, and fetches reviews and exchange rates concurrently
-
+    
     async with httpx.AsyncClient(timeout=30) as client:
+        # Get location ID
         location_id = await get_location_id(city_name, client)
         if not location_id:
             raise HTTPException(status_code=404, detail="City not found")
 
+        # Fetch hotels
         hotels = await get_hotels_data(location_id, arrival_date, departure_date, client, page, sort_by)
+        if not hotels:
+            return {"status": "Ok", "data": []}
 
+        # Fetch exchange rates
         rates_data = await ExchangeRateService.get_rates()
         base_currency_code = rates_data.get("base_currency", "BHD")
         base_currency_date = rates_data.get("base_currency_date", 0)
 
-        # Concurrently fetch hotel reviews with limited concurrency
+        # Prepare concurrent tasks for reviews and full details (including photos)
         review_tasks = [get_hotel_reviews(hotel["id"], client) for hotel in hotels]
-        reviews_list = await asyncio.gather(*review_tasks)
+        full_detail_tasks = [get_hotel_full_detail(hotel["id"], client, arrival_date, departure_date) for hotel in hotels]
 
+        # Run all tasks concurrently
+        reviews_list, full_details_list = await asyncio.gather(
+            asyncio.gather(*review_tasks),
+            asyncio.gather(*full_detail_tasks)
+        )
+
+        # Build hotel info
         hotel_infos = []
-        # Combine hotel data and reviews, convert prices to base currency
-        for hotel, review_scores in zip(hotels, reviews_list):
-            info = await build_hotel_info(hotel, review_scores, base_currency_code, base_currency_date)
+        for hotel, review_scores, full_details in zip(hotels, reviews_list, full_details_list):
+            hotel_booking_url = full_details.get("hotel_booking_url")
+            hotel_address = full_details.get("hotel_address")
+            hotel_photo_url = full_details.get("hotel_photo_url")
+
+            info = await assemble_hotel_info(
+                hotel,
+                review_scores,
+                hotel_booking_url,
+                hotel_photo_url,
+                hotel_address,
+                base_currency_code,
+                base_currency_date
+            )
             hotel_infos.append(info)
 
         return hotel_infos
+
 
 
 hotelIn = hotel_pydanticIn
@@ -217,8 +238,7 @@ async def flight(
     arrival_date: str = Query(..., description="Arrival date YYYY-MM-DD format"),
     departure_date: str = Query(..., description="Departure date YYYY-MM-DD format"),
     departure_city_name: str = Query(..., description="Departure city name"),
-    page: int = Query(1, description="Page number", ge=1),
-    limit: int = Query(10, description="Number of results per page", ge=1, le=50),
+
 ):
     # Fetches flight info between departure and arrival cities/dates,
     # applies pagination and currency conversion for pricing
@@ -232,14 +252,11 @@ async def flight(
     total_results = len(flights)
 
     # Pagination slicing
-    start_index = (page - 1) * limit
-    end_index = start_index + limit
-    flights = flights[start_index:end_index]
+
+
 
     return {
         "status": "Ok",
-        "page": page,
-        "limit": limit,
         "total": total_results,
         "base_currency": base_currency_code,
         "base_currency_date": base_currency_date,
