@@ -2,16 +2,15 @@ from fastapi.responses import RedirectResponse
 import asyncio, httpx
 from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.security import OAuth2PasswordRequestForm
 from config.auth import get_current_user
 from config.cors import init_cors
 from config.database import init_db
-from models.user import User, user_pydanticIn
+from models.user import User, UserUpdate, user_pydanticIn, user_pydantic
 from models.hotel import hotel_pydanticIn
 from models.flight import flight_pydanticIn
-from models.attraction import attraction_pydanticIn
+from models.attraction import attraction_pydanticIn, Attraction, attraction_pydantic
 from services.attractions import (
-    build_attractions, get_all_attractions_service, get_attraction_autocomplete,
+    build_attractions, get_attraction_autocomplete,
     get_attractions_search, post_attraction_service
 )
 from services.authentication import (
@@ -25,8 +24,7 @@ from services.hotels import (
     get_hotels_data, get_location_id, post_hotel_service
 )
 from services.users import (
-    delete_user_service, get_all_users_service,
-    get_user_by_id_service, update_user_service
+    delete_user_service, update_user_service
 )
 
 app = FastAPI()
@@ -35,6 +33,8 @@ app = FastAPI()
 init_db(app)
 init_cors(app)
 
+
+userIn = user_pydanticIn
 # Redirect root URL to Swagger docs UI
 @app.get('/')
 def index():
@@ -42,7 +42,7 @@ def index():
 
 
 # ===== User profile endpoint (secured) =====
-@app.get("/users/profile")
+@app.get("/auth/user/profile" , tags=["Auth"])
 async def read_users_me(current_user: User = Depends(get_current_user)):
     # Returns the currently logged-in user's basic info
     return {
@@ -56,36 +56,37 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 @app.post("/auth/login", tags=["Auth"], summary="Login to get JWT token")
 async def login(form_data: OAuth2PasswordRequestFormCustom = Depends()):
     # Handles login and returns JWT token if credentials are valid
+    print("Received username:", form_data.username)
+    print("Received password:", form_data.password)
     return await login_service(form_data)
+
+@app.get("/auth/session",tags=["Auth"], summary="Get current logged-in user")
+async def get_current_session(current_user=Depends(get_current_user)):
+    """
+    Returns the currently logged-in user info based on JWT token.
+    """
+    user_data = await user_pydantic.from_tortoise_orm(current_user)
+    return {"status": "Ok", "user": user_data}
 
 
 # ===== Register endpoint =====
-userIn = user_pydanticIn
+
 @app.post('/auth/register', tags=["Auth"], summary="Register new user")
 async def register(user_info: userIn):
     # Registers a new user
     return await register_service(user_info)
 
+@app.patch("/auth/user/update", tags=["Auth"], summary="Update current user's info")
+async def update_user(
+    update_info: UserUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    return await update_user_service(
+        user_id=current_user.id,
+        update_info=update_info,
+        current_user=current_user
+    )
 
-# ===== List all users (secured) =====
-@app.get('/user', tags=["Users"], summary="List all users")
-async def get_all_users(current_user: User = Depends(get_current_user)):
-    # Returns a list of all users (only accessible by authenticated users)
-    return await get_all_users_service(current_user)
-
-
-# ===== Get user by ID (secured) =====
-@app.get('/auth/user/{user_id}', tags=["Auth"], summary="List a user by ID")
-async def get_user_by_id(user_id: UUID, current_user: User = Depends(get_current_user)):
-    # Returns user info by UUID
-    return await get_user_by_id_service(user_id, current_user)
-
-
-# ===== Update user info by ID (secured) =====
-@app.patch('/auth/user/{user_id}', tags=["Auth"], summary="Update a user info by ID")
-async def update_user(user_id: UUID, update_info: userIn, current_user: User = Depends(get_current_user)):
-    # Updates specified user fields
-    return await update_user_service(user_id, update_info, current_user)
 
 
 # ===== Delete user by ID (secured) =====
@@ -168,8 +169,10 @@ async def saveHotel(hotel_info: hotelIn, current_user: User = Depends(get_curren
     return await post_hotel_service(hotel_info, current_user)
 
 
+
+
 # ===== List all hotels saved by the current user =====
-@app.get("/user/{user_id}/hotels", tags=["Hotel"], summary="List all user's hotels")
+@app.get("/user/hotels", tags=["Hotel"], summary="List all user's hotels")
 async def get_all_hotels(current_user: User = Depends(get_current_user)):
     # Fetches all hotels saved by the authenticated user
     return await get_all_hotels_service(current_user)
@@ -225,11 +228,19 @@ async def saveAttraction(attraction_info: attractionIn, current_user: User = Dep
 
 
 # ===== List all attractions saved by the current user =====
-@app.get("/user/{user_id}/attraction", tags=["Attraction"], summary="List all user's Attractions")
-async def get_all_attractions(current_user: User = Depends(get_current_user)):
-    # Fetches all attractions saved by the authenticated user
-    return await get_all_attractions_service(current_user)
+@app.get("/user/attractions", tags=["Attraction"], summary="List all my Attractions")
+async def get_my_attractions(current_user: User = Depends(get_current_user)):
+    """
+    Retrieve all attractions related to the logged-in user.
+    """
+    attractions = await attraction_pydantic.from_queryset(
+        Attraction.filter(related_user=current_user.id)
+    )
 
+    if not attractions:
+        raise HTTPException(status_code=404, detail="No attractions found for this user")
+
+    return {"status": "Ok", "data": attractions}
 
 # ===== List flights by city with pagination =====
 @app.get("/flight", tags=["Flight"], summary="Get flights info")
@@ -268,13 +279,17 @@ flightIn = flight_pydanticIn
 
 # ===== Save user-selected flight =====
 @app.post('/flight', tags=["Flight"], summary="Save user Flight")
-async def saveFlight(flight_info: flightIn, current_user: User = Depends(get_current_user)):
-    # Saves flight selection linked to the current user
+async def save_flight(flight_info: flightIn, current_user: User = Depends(get_current_user)):
+    """
+    Saves a flight selection linked to the authenticated user.
+    """
     return await post_flight_service(flight_info, current_user)
 
 
 # ===== List all flights saved by the current user =====
-@app.get("/user/{user_id}/flights", tags=["Flight"], summary="List all user's Flights")
+@app.get("/user/flights", tags=["Flight"], summary="Save user flight")
 async def get_all_flights(current_user: User = Depends(get_current_user)):
-    # Fetches all flights saved by the authenticated user
-    return await get_all_flights_service(current_user)
+    return await get_all_flights_service( current_user)
+
+
+

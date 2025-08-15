@@ -244,36 +244,40 @@ async def get_flights(city_name: str, arrival_date: str, departure_date: str, de
 
 
 flightIn=flight_pydanticIn
-async def post_flight_service(flight_info:flightIn, current_user: User):
+
+async def post_flight_service(flight_info: flightIn, current_user: User):
     """
-    Service to save flight information to the database linked with current user.
+    Create a new flight record in the database linked to the current user.
     """
     flight_obj = await Flight.create(
-        departure_airport_info = flight_info.departure_airport_info,
+        departure_airport_info=flight_info.departure_airport_info,
         arrival_airport_info=flight_info.arrival_airport_info,
-        outbound_price= flight_info.outbound_price,
-        outbound_currency= flight_info.outbound_currency,
+        outbound_price=flight_info.outbound_price,
+        outbound_currency=flight_info.outbound_currency,
         outbound_duration_hours=flight_info.outbound_duration_hours,
         outbound_departure_time=flight_info.outbound_departure_time,
         outbound_arrival_time=flight_info.outbound_arrival_time,
-        outbound_cabin_class = flight_info.outbound_cabin_class,
+        outbound_cabin_class=flight_info.outbound_cabin_class,
         outbound_flight_number=flight_info.outbound_flight_number,
-        outbound_carrier = flight_info.outbound_carrier,
-        return_price= flight_info.return_price,
-        return_currency= flight_info.return_currency,
+        outbound_carrier=flight_info.outbound_carrier,
+        outbound_legs=flight_info.outbound_legs,
+        return_price=flight_info.return_price,
+        return_currency=flight_info.return_currency,
         return_duration_hours=flight_info.return_duration_hours,
         return_departure_time=flight_info.return_departure_time,
         return_arrival_time=flight_info.return_arrival_time,
-        return_cabin_class = flight_info.return_cabin_class,
+        return_cabin_class=flight_info.return_cabin_class,
         return_flight_number=flight_info.return_flight_number,
-        return_carrier = flight_info.return_carrier,
+        return_carrier=flight_info.return_carrier,
+        return_legs=flight_info.return_legs,
         related_user_id=current_user.id
     )
-    # Return success status and saved flight data
+
     return {
         "status": "Ok",
         "data": await flight_pydantic.from_tortoise_orm(flight_obj)
     }
+
 
 async def get_all_flights_service(current_user: User):
     """

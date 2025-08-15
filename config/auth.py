@@ -46,7 +46,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """
     to_encode = data.copy()  # Make a copy so we don't modify the original data
     # Set token expiration time (either provided or default from env variable)
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 15))))
     to_encode.update({"exp": expire})  # Add expiration claim
     # Encode the token using the secret key and algorithm from environment variables
     return jwt.encode(to_encode, os.getenv("SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))

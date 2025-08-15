@@ -2,10 +2,10 @@ run:
 	uvicorn main:app --reload
 
 migrate:
-	aerich migrate
+	aerich migrate 
 
 applymigrate:
-	aerich upgrade
+	aerich upgrade 
 
 create:
 	aerich init-db

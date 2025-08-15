@@ -225,13 +225,13 @@ async def post_attraction_service(attraction_info: attractionIn, current_user: U
     """
     attraction_obj = await Attraction.create(
         attraction_name=attraction_info.attraction_name,
-        attraction_description=attraction_info.attraction_name,
-        attraction_price=attraction_info.attraction_name,
-        attraction_availability_date=attraction_info.attraction_name,
-        attraction_average_review=attraction_info.attraction_name,
-        attraction_total_review=attraction_info.attraction_name,
-        attraction_photo=attraction_info.attraction_name,
-        attraction_daily_timing=attraction_info.attraction_name,
+        attraction_description=attraction_info.attraction_description,
+        attraction_price=attraction_info.attraction_price,
+        attraction_availability_date=attraction_info.attraction_availability_date,
+        attraction_average_review=attraction_info.attraction_average_review,
+        attraction_total_review=attraction_info.attraction_total_review,
+        attraction_photo=attraction_info.attraction_photo,
+        attraction_daily_timing=attraction_info.attraction_daily_timing,
         related_user_id=current_user.id
     )
     # Return the newly created attraction data as Pydantic model
@@ -251,4 +251,4 @@ async def get_all_attractions_service(current_user: User):
     )
     if not get_all_attractions_res:
         raise HTTPException(status_code=404, detail="No attractions found for this user")
-    return {"status": "Ok", "data": get_all_attractions_res}
+    return {"status": "Ok", "data": (get_all_attractions_res,current_user.id)}

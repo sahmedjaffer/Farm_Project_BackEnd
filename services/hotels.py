@@ -220,27 +220,30 @@ async def assemble_hotel_info(hotel, review_scores, hotel_booking_url, hotel_pho
 
 
 hotelIn = hotel_pydanticIn
-async def post_hotel_service(hotel_info: hotelIn, current_user: User):
+async def post_hotel_service(hotel_info, current_user):
     """
     Create a new hotel record in the database linked to the current user.
     Returns the saved hotel data in the response.
     """
-    hotel_obj = await Hotel.create(
-        hotel_name=hotel_info.hotel_name,
-        hotel_review_score_word=hotel_info.hotel_review_score_word,
-        hotel_review_score=hotel_info.hotel_review_score,
-        hotel_gross_price=hotel_info.hotel_gross_price,
-        hotel_currency=hotel_info.hotel_currency,
-        hotel_check_in=hotel_info.hotel_check_in,
-        hotel_check_out=hotel_info.hotel_check_out,
-        hotel_score=hotel_info.hotel_score,
-        related_user_id=current_user.id
-    )
+    hotel_data = {
+        "hotel_name": hotel_info.hotel_name,
+        "hotel_review_score_word": hotel_info.hotel_review_score_word,
+        "hotel_review_score": hotel_info.hotel_review_score,
+        "hotel_gross_price": hotel_info.hotel_gross_price,
+        "hotel_currency": hotel_info.hotel_currency,
+        "hotel_check_in": hotel_info.hotel_check_in,
+        "hotel_check_out": hotel_info.hotel_check_out,
+        "hotel_score": hotel_info.hotel_score,
+        "hotel_url": hotel_info.hotel_url,
+        "related_user_id": current_user.id
+    }
+
+    hotel_obj = await Hotel.create(**hotel_data)
+    
     return {
         "status": "Ok",
         "data": await hotel_pydantic.from_tortoise_orm(hotel_obj)
     }
-
 
 async def get_all_hotels_service(current_user: User):
     """

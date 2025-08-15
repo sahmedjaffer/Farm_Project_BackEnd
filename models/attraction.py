@@ -12,7 +12,7 @@ class Attraction (Model):
     attraction_average_review=fields.CharField (max_length=10)
     attraction_total_review=fields.CharField (max_length=10)
     attraction_photo=fields.CharField (max_length=200)
-    attraction_daily_timing= fields.CharField (max_length=20)
+    attraction_daily_timing= fields.CharField (max_length=40)
     related_user = fields.ForeignKeyField("models.User", related_name='selected_attraction')
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

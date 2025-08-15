@@ -9,7 +9,8 @@ _redis_client = redis.Redis(
     port=int(os.getenv("REDIS_PORT")),
     username=os.getenv("REDIS_USER"),
     password=os.getenv("REDIS_PASSWORD"),
-    decode_responses=True
+    decode_responses=True,
+    max_connections=50
 )
 
 def get_redis_client():

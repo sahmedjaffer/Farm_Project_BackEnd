@@ -1,5 +1,5 @@
 from tortoise.contrib.fastapi import register_tortoise
-from config.tortoise_config import TORTOISE_ORM
+from tortoise_config import TORTOISE_ORM
 
 def init_db(app):
     register_tortoise(

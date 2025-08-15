@@ -3,6 +3,16 @@ from tortoise import fields
 from tortoise.contrib.pydantic import pydantic_model_creator
 import uuid
 
+from pydantic import BaseModel
+from typing import Optional
+
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+
 
 
 
