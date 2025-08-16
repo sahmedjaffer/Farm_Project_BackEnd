@@ -13,9 +13,9 @@ def init_cors(app):
     if ENV == "dev":
         # Allowed origins in development environment
         origins = [
-             #"http://localhost:5174",  # Local React dev server
-             #"http://127.0.0.1:5174",  # Local React dev server (alternative)
-             "*"
+             "http://localhost:5174",  # Local React dev server
+             "http://127.0.0.1:5174",  # Local React dev server (alternative)
+             
         ]
     else:
         # Allowed origins in production environment
