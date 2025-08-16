@@ -1,6 +1,8 @@
+from uuid import UUID
 import httpx, asyncio, json, os
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from typing import Dict, Any
+from config.auth import get_current_user
 from models.user import User
 from models.flight import Flight, flight_pydantic, flight_pydanticIn
 from services.exchange_rate import ExchangeRateService
@@ -290,3 +292,24 @@ async def get_all_flights_service(current_user: User):
     if not get_all_flights_res:
         raise HTTPException(status_code=404, detail="No flights found for this user")
     return {"status": "Ok", "data": get_all_flights_res}
+
+
+
+async def delete_flight_service(
+    flight_id: int,
+    user_id: UUID,
+    current_user: User = Depends(get_current_user)
+):
+    # Fetch hotel by id
+    flight = await Flight.get_or_none(id=flight_id)
+    if not flight:
+        raise HTTPException(status_code=404, detail="Flight not found")
+
+    # Check ownership
+    if flight.related_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this hotel")
+
+    # Delete hotel and get deleted count
+    deleted_count = await Flight.filter(id=flight_id).delete()
+    
+    return {"status": "Ok", "deleted_count": deleted_count}

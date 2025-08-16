@@ -6,21 +6,21 @@ from config.auth import get_current_user
 from config.cors import init_cors
 from config.database import init_db
 from models.user import User, UserUpdate, user_pydanticIn, user_pydantic
-from models.hotel import hotel_pydanticIn
-from models.flight import flight_pydanticIn
+from models.hotel import hotel_pydanticIn, hotel_pydantic, Hotel
+from models.flight import flight_pydanticIn , flight_pydantic,Flight
 from models.attraction import attraction_pydanticIn, Attraction, attraction_pydantic
 from services.attractions import (
-    build_attractions, get_attraction_autocomplete,
+    build_attractions, delete_attraction_service, get_attraction_autocomplete,
     get_attractions_search, post_attraction_service
 )
 from services.authentication import (
     OAuth2PasswordRequestFormCustom, login_service, register_service
 )
 from services.exchange_rate import ExchangeRateService
-from services.flights import get_all_flights_service, get_flights, post_flight_service
+from services.flights import delete_flight_service, get_all_flights_service, get_flights, post_flight_service
 from services.general import get_weather_service
 from services.hotels import (
-     assemble_hotel_info, get_all_hotels_service, get_hotel_full_detail, get_hotel_reviews,
+     assemble_hotel_info, delete_hotel_service, get_all_hotels_service, get_hotel_full_detail, get_hotel_reviews,
     get_hotels_data, get_location_id, post_hotel_service
 )
 from services.users import (
@@ -178,6 +178,14 @@ async def get_all_hotels(current_user: User = Depends(get_current_user)):
     return await get_all_hotels_service(current_user)
 
 
+# ===== Delete hotel by ID (secured) =====
+@app.delete('/user/hotels/{hotel_id}', tags=["Hotel"], summary="Delete a Hotel by ID")
+async def delete_hotel(hotel_id: int, current_user: User = Depends(get_current_user)):
+    # Deletes the specified hotel for the current user
+    return await delete_hotel_service(hotel_id, current_user.id)
+
+
+
 # ===== List attractions by city =====
 @app.get("/attraction", tags=["Attraction"], summary="Find attractions")
 async def get_attraction(
@@ -242,6 +250,14 @@ async def get_my_attractions(current_user: User = Depends(get_current_user)):
 
     return {"status": "Ok", "data": attractions}
 
+
+# ===== Delete attraction by ID (secured) =====
+@app.delete('/user/attractions/{attraction_id}', tags=["Attraction"], summary="Delete an Attractions by ID")
+async def delete_attraction(attraction_id: int, current_user: User = Depends(get_current_user)):
+    # Deletes the specified hotel for the current user
+    return await delete_attraction_service(attraction_id, current_user.id)
+
+
 # ===== List flights by city with pagination =====
 @app.get("/flight", tags=["Flight"], summary="Get flights info")
 async def flight(
@@ -290,6 +306,12 @@ async def save_flight(flight_info: flightIn, current_user: User = Depends(get_cu
 @app.get("/user/flights", tags=["Flight"], summary="Save user flight")
 async def get_all_flights(current_user: User = Depends(get_current_user)):
     return await get_all_flights_service( current_user)
+
+# ===== Delete flight by ID (secured) =====
+@app.delete('/user/flights/{flight_id}', tags=["Flight"], summary="Delete a Flight by ID")
+async def delete_flight(flight_id: int, current_user: User = Depends(get_current_user)):
+    # Deletes the specified hotel for the current user
+    return await delete_flight_service(flight_id, current_user.id)
 
 
 

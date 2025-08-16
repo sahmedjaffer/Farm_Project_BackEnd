@@ -1,14 +1,20 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file before accessing them
+load_dotenv() 
+
 TORTOISE_ORM = {
  "connections": {
     "default": {
-        "engine": "tortoise.backends.asyncpg",
+        "engine": os.getenv("NEON_ENGINE"),
         "credentials": {
-            "host": "ep-old-snow-ae85hwtu-pooler.c-2.us-east-2.aws.neon.tech",
-            "port": 5432,
-            "user": "neondb_owner",
-            "password": "npg_iv67cfugejOQ",
-            "database": "neondb",
-            "ssl": True,
+            "host": os.getenv("NEON_HOST"),
+            "port": int(os.getenv("NEON_PORT")),
+            "user": os.getenv("NEON_USER"),
+            "password": os.getenv("NEON_PASSWORD"),
+            "database": os.getenv("NEON_DATABASE"),
+            "ssl": bool(os.getenv("NEON_SSL")),
             "server_settings": {"channel_binding": "require"},
         },
     }
@@ -18,8 +24,6 @@ TORTOISE_ORM = {
             "models": [
                 "models.attraction",
                 "models.user",
-                "models.trips",
-                "models.preferences",
                 "models.hotel",
                 "models.flight",
                 "aerich.models",

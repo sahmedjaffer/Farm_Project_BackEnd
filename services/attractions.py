@@ -1,5 +1,7 @@
-from fastapi import HTTPException
+from uuid import UUID
+from fastapi import Depends, HTTPException
 import httpx, asyncio, json, os
+from config.auth import get_current_user
 from models.attraction import Attraction, attraction_pydantic, attraction_pydanticIn
 from models.user import User
 from services.exchange_rate import ExchangeRateService
@@ -252,3 +254,24 @@ async def get_all_attractions_service(current_user: User):
     if not get_all_attractions_res:
         raise HTTPException(status_code=404, detail="No attractions found for this user")
     return {"status": "Ok", "data": (get_all_attractions_res,current_user.id)}
+
+
+
+async def delete_attraction_service(
+    attraction_id: int,
+    user_id: UUID,
+    current_user: User = Depends(get_current_user)
+):
+    # Fetch hotel by id
+    attraction = await Attraction.get_or_none(id=attraction_id)
+    if not attraction:
+        raise HTTPException(status_code=404, detail="Attraction not found")
+
+    # Check ownership
+    if attraction.related_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this hotel")
+
+    # Delete hotel and get deleted count
+    deleted_count = await Attraction.filter(id=attraction_id).delete()
+    
+    return {"status": "Ok", "deleted_count": deleted_count}

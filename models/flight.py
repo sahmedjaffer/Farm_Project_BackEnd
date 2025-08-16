@@ -17,7 +17,6 @@ class Flight (Model):
     outbound_flight_number = fields.CharField(max_length=10)
     outbound_carrier = fields.CharField(max_length=30)
     outbound_legs = fields.JSONField(null=True)  # each leg info
-
     return_price = fields.CharField(max_length=10)
     return_currency = fields.CharField(max_length=4)
     return_duration_hours = fields.CharField(max_length=25)
@@ -27,7 +26,6 @@ class Flight (Model):
     return_flight_number = fields.CharField(max_length=10)
     return_carrier = fields.CharField(max_length=30)
     return_legs = fields.JSONField(null=True)  # each leg info
-
     related_user = fields.ForeignKeyField("models.User", related_name='selected_flight')
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

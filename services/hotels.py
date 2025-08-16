@@ -1,5 +1,7 @@
+from uuid import UUID
 from fastapi import Depends, HTTPException
 import httpx, asyncio, json, os
+from config.auth import get_current_user
 from models.user import User
 from services.exchange_rate import ExchangeRateService
 from config.redis_client import get_redis_client
@@ -228,13 +230,12 @@ async def post_hotel_service(hotel_info, current_user):
     hotel_data = {
         "hotel_name": hotel_info.hotel_name,
         "hotel_review_score_word": hotel_info.hotel_review_score_word,
-        "hotel_review_score": hotel_info.hotel_review_score,
+        "hotel_review_score": float(hotel_info.hotel_review_score),
         "hotel_gross_price": hotel_info.hotel_gross_price,
         "hotel_currency": hotel_info.hotel_currency,
         "hotel_check_in": hotel_info.hotel_check_in,
         "hotel_check_out": hotel_info.hotel_check_out,
-        "hotel_score": hotel_info.hotel_score,
-        "hotel_url": hotel_info.hotel_url,
+        "hotel_photo_url": hotel_info.hotel_photo_url,
         "related_user_id": current_user.id
     }
 
@@ -256,3 +257,24 @@ async def get_all_hotels_service(current_user: User):
     if not get_all_hotels_res:
         raise HTTPException(status_code=404, detail="No hotels found for this user")
     return {"status": "Ok", "data": get_all_hotels_res}
+
+
+async def delete_hotel_service(
+    hotel_id: int,
+    user_id: UUID,
+    current_user: User = Depends(get_current_user)
+):
+    # Fetch hotel by id
+    hotel = await Hotel.get_or_none(id=hotel_id)
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # Check ownership
+    if hotel.related_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this hotel")
+
+    # Delete hotel and get deleted count
+    deleted_count = await Hotel.filter(id=hotel_id).delete()
+    
+    return {"status": "Ok", "deleted_count": deleted_count}
+
