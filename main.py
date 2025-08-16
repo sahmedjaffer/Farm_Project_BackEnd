@@ -1,5 +1,5 @@
 from fastapi.responses import RedirectResponse
-import asyncio, httpx
+import asyncio, httpx,uvicorn,os
 from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException, Query
 from config.auth import get_current_user
@@ -26,12 +26,26 @@ from services.hotels import (
 from services.users import (
     delete_user_service, update_user_service
 )
+from dotenv import load_dotenv
+
+# Load environment variables from .env file before accessing them
+load_dotenv() 
+
+
+
 
 app = FastAPI()
 
 # Initialize database and CORS settings
 init_db(app)
 init_cors(app)
+
+# Entry point
+if __name__ == "__main__":
+  
+    port = int(os.getenv("PORT", 8000))  
+    host = "0.0.0.0" 
+    uvicorn.run("main:app", host=host, port=port, reload=True)
 
 
 userIn = user_pydanticIn
