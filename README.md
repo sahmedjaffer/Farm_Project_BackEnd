@@ -1,4 +1,4 @@
-# 🌱 Trip Planner Backend
+# 🌍 Trip Planner Backend
 
 This is the **backend** of the **Trip Planner** project.  
 It provides the API endpoints for **user authentication, profile management, hotels, flights, and attractions** to support the frontend application.
