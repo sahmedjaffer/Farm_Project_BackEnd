@@ -13,8 +13,8 @@ def init_cors(app):
     if ENV == "dev":
         # Allowed origins in development environment
         origins = [
-             "http://localhost:5174",  # Local React dev server
-             "http://127.0.0.1:5174",  # Local React dev server (alternative)
+             "viajero-bh.surge.sh:5174",  # Local React dev server
+             "viajero-bh.surge.sh:5174",  # Local React dev server (alternative)
              
         ]
     else:
