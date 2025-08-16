@@ -124,5 +124,5 @@ You can access the live Swagger UI here:
 
 ## 👤 Author
 
-Developed by **[Your Name]** ✨  
+Developed by **[Sayed Ahmed Kadhem]** ✨  
 Supports the **Trip Planner Frontend**.
