@@ -10,7 +10,7 @@ It provides the API endpoints for **user authentication, profile management, hot
 ## 🔗 Frontend Repository
 
 The frontend of this project is available here:  
-[Trip Planner Frontend](https://github.com/sahmedjaffer/Farm_Project_FrontEnd.git)
+[Trip Planner Frontend](https://github.com/sahmedjaffer/Trip_Planner_Frontend.git)
 
 ---
 
