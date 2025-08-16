@@ -13,14 +13,14 @@ def init_cors(app):
     if ENV == "dev":
         # Allowed origins in development environment
         origins = [
-             "viajero-bh.surge.sh",  # Local React dev server
-             "viajero-bh.surge.sh",  # Local React dev server (alternative)
+             "https://viajero-bh.surge.sh",  # Local React dev server
+             "https://viajero-bh.surge.sh",  # Local React dev server (alternative)
              
         ]
     else:
         # Allowed origins in production environment
         origins = [
-            "https://myfrontend.com",  # Your actual production frontend domain
+            "https://viajero-bh.surge.sh",  # Your actual production frontend domain
         ]
 
     # Add CORS Middleware
