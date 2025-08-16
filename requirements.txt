@@ -1,11 +1,15 @@
+aerich==0.9.1
 aiosqlite==0.21.0
 annotated-types==0.7.0
 anyio==4.10.0
+asyncclick==8.1.8.0
 asyncio==3.4.3
+asyncpg==0.30.0
 bcrypt==4.3.0
 certifi==2025.8.3
 charset-normalizer==3.4.2
 click==8.2.1
+dictdiffer==0.9.0
 dnspython==2.7.0
 email_validator==2.2.0
 fastapi==0.116.1
@@ -59,4 +63,3 @@ websockets==15.0.1
 
 # to add all the libraries used in requirements pip freeze > requirements.txt
 # to install directly use pip install -r requirements.txt
-
